@@ -1,0 +1,34 @@
+# Copyright (c) 2021 Arm Limited and Contributors. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+workflow:
+  rules:
+    - when: always
+
+stages:
+  - build
+
+image: ${OPEN_IOT_SDK_DOCKER_REGISTRY}/scancode:21.x
+
+License Check:
+  tags:
+    - iotmsw-amd64
+  stage: build
+  script:
+    - scancode -l --json-pp scancode_report.json .
+    - jsonschema -i scancode_report.json .gitlab/ci/license/license.schema
+  artifacts:
+    paths:
+      - scancode_report.json
+    expire_in: 1 week
+
+License Scheme Test:
+  tags:
+    - iotmsw-amd64
+  stage: build
+  script:
+    - cd .gitlab/ci/license
+    - ./test_schema.sh
+  rules:
+    - changes:
+      - .gitlab/ci/license/license.schema
