@@ -1,0 +1,3 @@
+[submodule "lib/VHT"]
+	path = lib/VHT
+	url = https://github.com/ARM-software/VHT

@@ -1,0 +1,99 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 1347879..57ec8a1 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -243,7 +243,7 @@ file(GLOB_RECURSE SRC_APPLICATION
+     "${SRC_PATH}/application/main/**/*.cpp"
+     "${SRC_PATH}/application/main/**/*.c"
+     )
+-list(FILTER SRC_APPLICATION EXCLUDE REGEX ".*main\\.c.*$")
++list(FILTER SRC_APPLICATION EXCLUDE REGEX ".*Main.cc$")
+
+ list(JOIN USE_CASE_BUILD "" USE_CASE_BUILD_STR)
+ list(APPEND USE_CASES_SEARCH_DIR_LIST ${SRC_PATH}/use_case)
+@@ -329,18 +329,28 @@ foreach(use_case ${USE_CASES})
+         )
+
+     set(SRC_MAIN "${SRC_PATH}/application/main/Main.cc")
++    list(APPEND SRC_MAIN)
+
+     set_source_files_properties(${SRC_MAIN}
+         PROPERTIES COMPILE_DEFINITIONS
+         "PRJ_VER_STR=\"${PROJECT_VERSION}\";PRJ_DES_STR=\"${PROJECT_DESCRIPTION}\"")
+
++    set(HAL_LIB_NAME lib_hal_${TARGET_NAME})
++
++    add_library(${HAL_LIB_NAME} STATIC
++        ${SRC_HAL}
++        )
++    target_include_directories(${HAL_LIB_NAME} PUBLIC
++        ${APPLICATION_INCLUDE_DIRS}
++        ${DEP_RUNTIME_INCLUDE_DIRS}
++        )
++
+     set(UC_LIB_NAME lib${TARGET_NAME})
+-
++
+     # Consolidated application static lib:
+     add_library(${UC_LIB_NAME} STATIC
+         ${SRC_APPLICATION}
+         ${SRC_TENSORFLOW_LITE_MICRO}
+-        ${SRC_HAL}
+         ${UC_SRC}
+         ${SRC_GEN}
+         )
+@@ -378,7 +388,7 @@ foreach(use_case ${USE_CASES})
+
+     add_executable(${TARGET_NAME} ${SRC_MAIN} ${PLAT_RETARGET_SOURCE})
+
+-    target_link_libraries(${TARGET_NAME} ${UC_LIB_NAME})
++    target_link_libraries(${TARGET_NAME} ${UC_LIB_NAME} ${HAL_LIB_NAME})
+
+     if (${CMAKE_CROSSCOMPILING})
+         set_target_properties(${TARGET_NAME} PROPERTIES SUFFIX ".axf")
+@@ -464,7 +474,7 @@ foreach(use_case ${USE_CASES})
+             add_executable(${TEST_TARGET_NAME} ${TEST_SOURCES})
+             target_include_directories(${TEST_TARGET_NAME} PUBLIC
+                 ${TEST_TPIP_INCLUDE} ${TEST_RESOURCES_INCLUDE})
+-            target_link_libraries(${TEST_TARGET_NAME} ${UC_LIB_NAME})
++            target_link_libraries(${TEST_TARGET_NAME} ${UC_LIB_NAME} ${HAL_LIB_NAME})
+             target_compile_definitions(${TEST_TARGET_NAME} PRIVATE
+                 "ACTIVATION_BUF_SZ=${${use_case}_ACTIVATION_BUF_SZ}"
+                 TESTS)
+diff -r --exclude=.git --exclude=resources_downloaded --exclude=log_build_default.log -w -Naur orig/source/application/hal/platforms/bare-metal/bsp/bsp-core/retarget.c patched/source/application/hal/platforms/bare-metal/bsp/bsp-core/retarget.c
+--- orig/source/application/hal/platforms/bare-metal/bsp/bsp-core/retarget.c	2021-10-07 13:17:06.000000000 +0100
++++ patched/source/application/hal/platforms/bare-metal/bsp/bsp-core/retarget.c	2021-10-07 12:43:38.000000000 +0100
+@@ -197,7 +197,8 @@
+
+ void RETARGET(_exit)(int return_code)
+ {
+-    UartEndSimulation(return_code);
++    // TODO: unify drivers in SDK
++    //UartEndSimulation(return_code);
+ }
+
+ int system(const char *cmd)
+@@ -241,18 +242,18 @@
+     return 0;
+ }
+
+-int fputc(int ch, FILE *f)
++// Commented out in favor of the tfm implementation
++/*int fputc(int ch, FILE *f)
+ {
+     UNUSED(f);
+-
+     return UartPutc(ch);
+-}
++}*/
+
+ int fgetc(FILE *f)
+ {
+     UNUSED(f);
+-
+-    return UartPutc(UartGetc());
++    // TODO: Unify drivers in SDK
++    return 0;//UartPutc(UartGetc());
+ }
+
+ #ifndef ferror
