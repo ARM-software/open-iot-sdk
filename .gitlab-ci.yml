@@ -1,0 +1,55 @@
+# Copyright (c) 2021 Arm Limited and Contributors. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+variables:
+  GIT_CLONE_PATH: /builds/workspace
+
+
+workflow:
+  rules:
+    - if: $CI_MERGE_REQUEST_ID
+    - if: $CI_COMMIT_REF_NAME =~ /^release-.*/
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+pre-commit:
+  tags:
+    - iotmsw-amd64
+  image: ${OPEN_IOT_SDK_DOCKER_REGISTRY}/sanity:v1
+  stage: build
+  script:
+    - pre-commit run --all-files --verbose --show-diff-on-failure
+
+
+license:
+  stage: build
+  trigger:
+    include: .gitlab/ci/pipeline/license.yml
+    strategy: depend
+
+
+build gcc10:
+  stage: build
+  trigger:
+    include: .gitlab/ci/pipeline/build-gcc.yml
+    strategy: depend
+
+build armc6:
+  stage: build
+  trigger:
+    include: .gitlab/ci/pipeline/build-armclang.yml
+    strategy: depend
+
+sync-public:
+  image: ${OPEN_IOT_SDK_DOCKER_REGISTRY}/sanity:v1
+  tags:
+    - iotmsw-amd64
+  stage: .post
+  variables:
+    SYNC_DESTINATION : 'https://${GITLAB_USER_ID}:${PUBLIC_SDK_TOKEN}@git.gitlab.arm.com/iot/open-iot-sdk/examples/${CI_PROJECT_NAME}.git'
+
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  script:
+    - git remote add public ${SYNC_DESTINATION}
+    - git push public HEAD:${CI_COMMIT_BRANCH}
