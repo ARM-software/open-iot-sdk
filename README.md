@@ -24,24 +24,24 @@ To further explore the next level of source code, you can go to the home of the 
 [Arm IoT Total Solutions](https://www.arm.com/solutions/iot/total-solutions-iot) provides a complete solution designed for specific use-cases containing everything needed to streamline the design process and accelerate product development.  To accelerate your software development needs, each Total Solutions brings together:
 
 * Hardware IP
-* csp cloud connectivity middleware
-* real-time OS support
-* machine learning (ML) models
-* advanced tools such as the new Arm Virtual Hardware
-* application specific reference code 
+* CSP cloud connectivity middleware
+* Real-time OS support
+* Machine learning (ML) models
+* Advanced tools such as Arm Virtual Hardware
+* Application specific reference code 
 * 3rd Party support from the world’s largest IoT ecosystem
 
-Refer to our initial Total Solutions below, ATS-Keyword and ATS-Speech for more information.   
+Refer to our initial Total Solutions below, ATS-Keyword and ATS-Blinky for more information.   
 
 <br>
 
 ## ATS-Keyword
-This repo contains Arm's first [IoT Total Solution](https://www.arm.com/solutions/iot/total-solutions-iot), "Keyword Detection".  It provides general-purpose compute and ML workload use-cases, including an ML-based keyword recognition example that leverages the DS-CNN model from the [Arm Model Zoo](https://github.com/ARM-software/ML-zoo).
+This repo contains Arm's first [IoT Total Solution](https://www.arm.com/solutions/iot/total-solutions-iot), "Keyword Detection".  It provides general-purpose compute and ML workload use-cases, including an ML-based keyword recognition example that leverages the DS-CNN model from the [Arm Model Zoo](https://github.com/ARM-software/ML-zoo). This application demonstrates both ML workloads as well as Cloud-connected functionality, such as Over-the-Air update.  The source code for this project is located within the [ATS-Keyword reference folder](https://github.com/ARM-software/open-iot-sdk/tree/main/examples/ats-keyword).
 
 <br>
 
 ## ATS-Blinky
-ATS-Blinky is a General-Purpose-Compute application that not only demonstrates blinking LEDs using Arm Virtual Hardware on Arm's more established processors.  AWS FreeRTOS is already included in the application to kickstart new developme
+ATS-Blinky is a General-Purpose-Compute application that demonstrates blinking LEDs using Arm Virtual Hardware on Arm's more established processors, it also provides .  AWS FreeRTOS is already included in the application and over time more RTOS abstractions will be added demonstrating the Open-CMSIS-CDI interfaces.  To start exploring this baseline application, head on over to the [ATS-Blinky project](https://github.com/ARM-software/open-iot-sdk/tree/main/examples/ats-blinky).
 
 <br>
 
@@ -54,29 +54,27 @@ ATS-Blinky is a General-Purpose-Compute application that not only demonstrates b
 | MDK                      | **Coming soon**           |
 | Keil Studio              | **Coming soon**           |
 | Windows (command prompt) | **Coming soon**           |
-| |
 
 <br>
 
 # Open-CMSIS-CDI
-The Open-CMSIS-CDI standard is one the of the foundations of IoT Total Solutions and is designed to solve common industry problems, reduce barriers to deployment and enable scale across the Arm Cortex-M ecosystem. 
+The Open-CMSIS-CDI standard is one the of the foundations of IoT Total Solutions and is designed to solve common industry problems, reduce barriers to deployment and enable scale across the Arm Cortex-M ecosystem. Open-CMSIS-CDI will define a common set of interfaces targeting cloud-service-to-device functionality to enable major IoT stacks to run across as broad a range of Arm-based MCUs as possible, with minimal porting effort.
 
 Open IoT-SDK is the reference implementation of the Centauri standards, [Open-CMSIS-CDI](https://github.com/Open-CMSIS-Pack/open-cmsis-cdi-spec) and [PSA](https://www.psacertified.org/). It is a software framework that demonstrates the capabilities that a Centauri-compliant device should have, including all the relevant APIs. This reference implementation provides a foundation for developers to build products upon in a scalable, consistent manner. 
 
-Open-CMSIS-CDI will define a common set of interfaces targeting cloud-service-to-device functionality to enable major IoT stacks to run across as broad a range of Arm-based MCUs as possible, with minimal porting effort.
-[Learn More](https://github.com/Open-CMSIS-Pack/open-cmsis-cdi-spec)
+Click [here](https://github.com/Open-CMSIS-Pack/open-cmsis-cdi-spec) learn more.
 
 <br>
 
 # Open-CMSIS-Pack
-The Open-CMSIS-Pack project delivers the infrastructure to integrate and manage software components and improve code reuse across embedded and IoT projects.  Work is underway to integrate this technology into the Total-Solutions Applications and is coming soon.
+The Open-CMSIS-Pack project delivers the infrastructure to integrate and manage software components and improve code reuse across embedded and IoT projects.  Work is underway to integrate this technology into the Open-IoT-SDK and the Total-Solutions applications and is coming soon.
 
 Click [here](https://github.com/Open-CMSIS-Pack/Open-CMSIS-Pack-Spec) to learn more.
 
 <br>
 
 # Continuous Integration
-Each Total Solution application has been built and verified using a continuous integration process.  Insie each Total Solution application folder you will find instructions on how to setup a continuous integration pipeline.  There will be examples for various CI systems such as GitLab and GitHub.
+Each Total Solution application has been built and verified using a continuous integration process.  Inside each Total Solution application folder you will find instructions on how to setup a continuous integration pipeline.  There will be examples for various CI systems such as GitLab and GitHub.
 
 <br>
 
