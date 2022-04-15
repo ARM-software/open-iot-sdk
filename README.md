@@ -1,6 +1,8 @@
 # Overview
 Welcome to Arm's Open-IoT-SDK, where you have access to a wide variety of IoT targeted software applications and components ready to run on Arm based platforms.  This software framework accelerates intelligent, connected IoT product design by allowing developers to focus on what really matters – innovation and differentiation. 
 
+The Open-IoT-SDK located within **GitHub** is a read-only downstream Arm® project mirror of the upstream project located in [GitLab:Open-IoT-SDK](https://gitlab.arm.com/iot/open-iot-sdk/examples).  Any enhancement requests or bugs identified for this repository will need to be submitted to the upstream [GitLab:Open-IoT-SDK](https://gitlab.arm.com/iot/open-iot-sdk/examples) project.”
+
 Below is a list of software topics to explore and utilize:
 
 * Arm Total Solution reference applications
@@ -10,18 +12,11 @@ Below is a list of software topics to explore and utilize:
   * Arm Virtual Hardware
 * Various example applications highlighting ARM Hardware-IP
 
-<br>
-
 The goal of this repository is to provide you the developer with as many software choices as possible to run on Arm IP without downloading a huge monolithic codebase.  This repository utilizes a multi-repository architecture stored in various locations across the internet.  
-
-
 
 The Total-Solutions applications you have access to here are built to pull down only the required software components that are needed thus saving time and hard disk space.  All the source code located in this GitHub repository is a READ-ONLY mirror of repositories within the Open-IoT-SDK framework that are stored and maintained [here](https://gitlab.arm.com/iot/open-iot-sdk) .  If you would like to submit changes, fixes or suggestions go to the specific top-level folder in this repository that contains the code you wish to change for more detailed instructions. 
 
 To further explore the next level of source code, you can go to the home of the Open-IoT-SDK software framework, located [here](https://gitlab.arm.com/iot/open-iot-sdk).
-
-
-
 
 <br>
 
