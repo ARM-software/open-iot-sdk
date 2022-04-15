@@ -12,11 +12,9 @@ Below is a list of software topics to explore and utilize:
   * Arm Virtual Hardware
 * Various example applications highlighting ARM Hardware-IP
 
-The goal of this repository is to provide you the developer with as many software choices as possible to run on Arm IP without downloading a huge monolithic codebase.  This repository utilizes a multi-repository architecture stored in various locations across the internet.  
+The goal of this repository is to provide you the developer with as many software choices as possible to run on Arm IP without downloading a huge monolithic codebase. This repository utilizes a multi-repository architecture stored in various locations across the internet. All the source code located in this GitHub repository is a subset of repositories within the Open-IoT-SDK framework that are stored and maintained [here](https://gitlab.arm.com/iot/open-iot-sdk). 
 
-The Total-Solutions applications you have access to here are built to pull down only the required software components that are needed thus saving time and hard disk space.  All the source code located in this GitHub repository is a READ-ONLY mirror of repositories within the Open-IoT-SDK framework that are stored and maintained [here](https://gitlab.arm.com/iot/open-iot-sdk) .  If you would like to submit changes, fixes or suggestions go to the specific top-level folder in this repository that contains the code you wish to change for more detailed instructions. 
-
-To further explore the next level of source code, you can go to the home of the Open-IoT-SDK software framework, located [here](https://gitlab.arm.com/iot/open-iot-sdk).
+The Total-Solutions applications you have access to here, when built, will pull down only the required software components that are needed thus saving time and hard disk space. To further explore the next level of source code, you can go to the home of the Open-IoT-SDK software framework, located [here](https://gitlab.arm.com/iot/open-iot-sdk).
 
 <br>
 
