@@ -36,12 +36,12 @@ Refer to our initial Total Solutions below, ATS-Keyword and ATS-Blinky for more 
 <br>
 
 ## ATS-Keyword
-This repo contains Arm's first [IoT Total Solution](https://www.arm.com/solutions/iot/total-solutions-iot), "Keyword Detection".  It provides general-purpose compute and ML workload use-cases, including an ML-based keyword recognition example that leverages the DS-CNN model from the [Arm Model Zoo](https://github.com/ARM-software/ML-zoo). This application demonstrates both ML workloads as well as Cloud-connected functionality, such as Over-the-Air update.  The source code for this project is located within the [ATS-Keyword reference folder](https://github.com/ARM-software/open-iot-sdk/tree/main/examples/ats-keyword).
+This repo contains Arm's first [IoT Total Solution](https://www.arm.com/solutions/iot/total-solutions-iot), "Keyword Detection".  It provides general-purpose compute and ML workload use-cases, including an ML-based keyword recognition example that leverages the DS-CNN model from the [Arm Model Zoo](https://github.com/ARM-software/ML-zoo). This application also demonstrates various Cloud-connected functionality, such as Over-the-Air update.  The source code for this project is located within the [ATS-Keyword reference folder](https://github.com/ARM-software/open-iot-sdk/tree/main/examples/ats-keyword).
 
 <br>
 
 ## ATS-Blinky
-ATS-Blinky is a General-Purpose-Compute application that demonstrates blinking LEDs using Arm Virtual Hardware on Arm's more established processors, it also provides .  AWS FreeRTOS is already included in the application and over time more RTOS abstractions will be added demonstrating the Open-CMSIS-CDI interfaces.  To start exploring this baseline application, head on over to the [ATS-Blinky project](https://github.com/ARM-software/open-iot-sdk/tree/main/examples/ats-blinky).
+ATS-Blinky is a General-Purpose-Compute application that demonstrates blinking LEDs using Arm Virtual Hardware on Arm's more established processors.  AWS FreeRTOS is already included in the application and over time more RTOS abstractions will be added demonstrating the Open-CMSIS-CDI interfaces.  To start exploring this baseline application, head on over to the [ATS-Blinky project](https://github.com/ARM-software/open-iot-sdk/tree/main/examples/ats-blinky).
 
 <br>
 
@@ -49,11 +49,11 @@ ATS-Blinky is a General-Purpose-Compute application that demonstrates blinking L
 
 | Build Environments       | Status                    |
 |----------------------    |---------------------------|
-| Linux                    | Now supported             |
-| Windows (WSL)            | Now supported             |
-| MDK                      | **Coming soon**           |
-| Keil Studio              | **Coming soon**           |
-| Windows (command prompt) | **Coming soon**           |
+| Linux                    | **Now supported**         |
+| Windows (WSL)            | **Now supported**         |
+| MDK                      | Coming soon               |
+| Keil Studio              | Coming soon               |
+| Windows (DOS)            | Coming soon               |
 
 <br>
 
