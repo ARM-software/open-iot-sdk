@@ -1,0 +1,3 @@
+[submodule "ats-keyword-lib/VHT"]
+	path = examples/ats-keyword/lib/VHT
+	url = https://github.com/ARM-software/VHT
