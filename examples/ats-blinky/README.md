@@ -1,3 +1,7 @@
+# Overview
+
+This repo contains an simple Blinky application that utilizes the Open-IoT-SDK software to run on Arm's more established ArmV6-M and ArmV7-M base MCUs.  The target names 
+
 # Blinky Example
 
 This example demonstrates the integration of FreeRTOS's kernel and MCU-Driver-HAL into a simple
