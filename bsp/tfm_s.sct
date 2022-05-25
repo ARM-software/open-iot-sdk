@@ -17,8 +17,10 @@
 LR_CODE ((0x38000000) + ((((0)) + (0x400)))) (((0x60000) - (0x400) - (0x800)) - (0x340)) {
 
 
-    ER_TFM_CODE ((0x38000000) + ((((0)) + (0x400)))) {
+    ER_VECTORS ((0x38000000) + ((((0)) + (0x400)))) {
         *.o (RESET +First)
+    ER_TFM_CODE +0 {
+        *startup*(.text*)
         *libplatform_s* (.text*, .rodata*)
         *libtfm_spm* (+RO)
     }
@@ -34,11 +36,6 @@ LR_CODE ((0x38000000) + ((((0)) + (0x400)))) (((0x60000) - (0x400) - (0x800)) - 
         *(.part_load)
     }
 
-
-
-
-
-
     TFM_PSA_CODE_START +0 ALIGN 32 EMPTY 0x0 {
     }
 
@@ -48,17 +45,8 @@ LR_CODE ((0x38000000) + ((((0)) + (0x400)))) (((0x60000) - (0x400) - (0x800)) - 
         *.o (TFM_*_PSA-ROT_ATTR_FN)
     }
 
-
-
-
-
     TFM_PSA_CODE_END +0 ALIGN 32 EMPTY 0x0 {
     }
-
-
-
-
-
 
     TFM_APP_CODE_START +0 ALIGN 32 EMPTY 0x0 {
     }
@@ -69,10 +57,6 @@ LR_CODE ((0x38000000) + ((((0)) + (0x400)))) (((0x60000) - (0x400) - (0x800)) - 
         *.o (TFM_*_APP-ROT_ATTR_FN)
     }
 
-
-
-
-
     TFM_APP_CODE_END +0 ALIGN 32 EMPTY 0x0 {
     }
 
@@ -82,11 +66,8 @@ LR_CODE ((0x38000000) + ((((0)) + (0x400)))) (((0x60000) - (0x400) - (0x800)) - 
     TFM_SHARED_DATA +0 ALIGN 32 OVERLAY EMPTY (0x400) {
     }
 
-
     ARM_LIB_STACK_MSP +0 ALIGN 32 OVERLAY EMPTY (0x0000800) {
     }
-
-
 
     ARM_LIB_STACK +0 ALIGN 32 EMPTY (0x0000800) - 0x8 {
     }
@@ -106,10 +87,6 @@ LR_CODE ((0x38000000) + ((((0)) + (0x400)))) (((0x60000) - (0x400) - (0x800)) - 
         *.o(TFM_*_APP-ROT_ATTR_ZI)
     }
 
-
-
-
-
     TFM_APP_RW_STACK_END +0 ALIGN 32 EMPTY 0x0 {
     }
 
@@ -128,11 +105,6 @@ LR_CODE ((0x38000000) + ((((0)) + (0x400)))) (((0x60000) - (0x400) - (0x800)) - 
         *(.bss.serv_runtime)
     }
 
-
-
-
-
-
     TFM_PSA_RW_STACK_START +0 ALIGN 32 EMPTY 0x0 {
     }
 
@@ -142,53 +114,36 @@ LR_CODE ((0x38000000) + ((((0)) + (0x400)))) (((0x60000) - (0x400) - (0x800)) - 
         *.o(TFM_*_PSA-ROT_ATTR_ZI)
     }
 
-
-
-
-
     TFM_PSA_RW_STACK_END +0 ALIGN 32 EMPTY 0x0 {
     }
 
     SRAM_WATERMARK +0 EMPTY 0x0 {
     }
 
-
-
-
     ScatterAssert(ImageLimit(SRAM_WATERMARK) <= (0x30000000) + ((0x00020000) * (0x4)))
 }
 
 
-LR_VENEER ((((0x38000000) + ((((0)) + (0x400)))) + (((0x60000) - (0x400) - (0x800)) - (0x340)) - 1) + 1) {
-
-
-
-
-
+ER_VENEER ((((0x38000000) + ((((0)) + (0x400)))) + (((0x60000) - (0x400) - (0x800)) - (0x340)) - 1) + 1) {
     CMSE_VENEER ((((0x38000000) + ((((0)) + (0x400)))) + (((0x60000) - (0x400) - (0x800)) - (0x340)) - 1) + 1) (0x340) {
         *(Veneer$$CMSE)
     }
 }
 
+/* The Limit of the VENEER_ALIGN region should be 32 bytes aligned  so that
+* the SAU can set this region as Non-Secure Callable.
+*/
+VENEER_ALIGN +0 ALIGN 32 EMPTY 0x0 {
+}
+
 
 LR_NS_PARTITION ((0x28000000) + (((0) + (0x60000)))) {
-
-
-
-
-
     ER_NS_PARTITION ((0x28000000) + (((0) + (0x60000)))) UNINIT ((0x200000)) {
     }
 }
 
 
 LR_SECONDARY_PARTITION ((0x28000000) + (((((0) + ((0x60000))) + ((0x200000)))))) {
-
-
-
-
-
     ER_SECONDARY_PARTITION ((0x28000000) + (((((0) + ((0x60000))) + ((0x200000)))))) UNINIT ((0x60000) + (0x200000)) {
-
     }
 }

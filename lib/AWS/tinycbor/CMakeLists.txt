@@ -11,10 +11,9 @@ add_library(tinycbor STATIC EXCLUDE_FROM_ALL
     "${aws-iot-device-sdk_SOURCE_DIR}/libraries/3rdparty/tinycbor/src/cborpretty_stdio.c"
     "${aws-iot-device-sdk_SOURCE_DIR}/libraries/3rdparty/tinycbor/src/cbortojson.c"
     "${aws-iot-device-sdk_SOURCE_DIR}/libraries/3rdparty/tinycbor/src/cborvalidation.c"
-    "${aws-iot-device-sdk_SOURCE_DIR}/libraries/3rdparty/tinycbor/src/open_memstream.c"
 )
 
 target_include_directories(tinycbor
-    PRIVATE
-        ${aws-iot-device-sdk_SOURCE_DIR}/libraries/3rdparty/tinycbor/src
+    PUBLIC
+        "${aws-iot-device-sdk_SOURCE_DIR}/libraries/3rdparty/tinycbor/src"
 )

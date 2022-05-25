@@ -1,6 +1,7 @@
 /*
  * FreeRTOS V202104.00
  * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -33,10 +34,6 @@
 #include <string.h>
 #include <stdio.h>
 
-/* Kernel includes. */
-#include "FreeRTOS.h"
-#include "semphr.h"
-
 /* Header include. */
 #include "freertos_agent_message.h"
 #include "core_mqtt_agent_message_interface.h"
@@ -47,14 +44,14 @@ bool Agent_MessageSend( MQTTAgentMessageContext_t * pMsgCtx,
                         MQTTAgentCommand_t * const * pCommandToSend,
                         uint32_t blockTimeMs )
 {
-    BaseType_t queueStatus = pdFAIL;
+    osStatus_t queueStatus = osError;
 
     if( ( pMsgCtx != NULL ) && ( pCommandToSend != NULL ) )
     {
-        queueStatus = xQueueSendToBack( pMsgCtx->queue, pCommandToSend, pdMS_TO_TICKS( blockTimeMs ) );
+        queueStatus = osMessageQueuePut( pMsgCtx->queue, pCommandToSend, 0U, pdMS_TO_TICKS( blockTimeMs ) );
     }
 
-    return ( queueStatus == pdPASS ) ? true : false;
+    return ( queueStatus == osOK ) ? true : false;
 }
 
 /*-----------------------------------------------------------*/
@@ -63,12 +60,12 @@ bool Agent_MessageReceive( MQTTAgentMessageContext_t * pMsgCtx,
                            MQTTAgentCommand_t ** pReceivedCommand,
                            uint32_t blockTimeMs )
 {
-    BaseType_t queueStatus = pdFAIL;
+    osStatus_t queueStatus = osError;
 
     if( ( pMsgCtx != NULL ) && ( pReceivedCommand != NULL ) )
     {
-        queueStatus = xQueueReceive( pMsgCtx->queue, pReceivedCommand, pdMS_TO_TICKS( blockTimeMs ) );
+        queueStatus = osMessageQueueGet( pMsgCtx->queue, pReceivedCommand, NULL, pdMS_TO_TICKS( blockTimeMs ) );
     }
 
-    return ( queueStatus == pdPASS ) ? true : false;
+    return ( queueStatus == osOK ) ? true : false;
 }

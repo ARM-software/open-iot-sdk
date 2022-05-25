@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2017-2021 Arm Limited
+* Copyright (c) 2017-2022 Arm Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,20 +18,21 @@
 #include <string.h>
 
 #include "bsp_serial.h"
-#include "serial_api.h"
+#include "hal/serial_api.h"
+#include "mps3_uart.h"
 
-static serial_t my_uart;
+static mps3_uart_t *my_uart;
 
 void bsp_serial_init(void)
 {
-    serial_init(&my_uart, CONSOLE_TX, CONSOLE_RX);
-    serial_baud(&my_uart, 115200);
+    mps3_uart_init(&my_uart, &UART0_CMSDK_DEV_NS);
+    mdh_serial_set_baud(&my_uart->serial, 115200);
 }
 
 void bsp_serial_print(char *str)
 {
     while (*str != '\0') {
-        serial_putc(&my_uart, *str++);
+        mdh_serial_put_data(&my_uart->serial, *str++);
     }
 }
 
@@ -40,7 +41,7 @@ int _write(int fd, char *str, int len)
 {
     int cnt = len;
     while(cnt > 0) {
-        serial_putc(&my_uart, *str++);
+        mdh_serial_put_data(&my_uart->serial, *str++);
         --cnt;
     }
 

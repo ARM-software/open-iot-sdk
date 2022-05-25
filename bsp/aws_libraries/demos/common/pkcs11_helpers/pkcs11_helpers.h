@@ -1,6 +1,7 @@
 /*
  * FreeRTOS V202012.00
  * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -29,7 +30,7 @@
  */
 
 /* FreeRTOS include. */
-#include "FreeRTOS.h"
+#include "RTOS_config.h"
 
 /*-----------------------------------------------------------*/
 

@@ -1,6 +1,7 @@
 /*
  * Amazon FreeRTOS V1.4.8
  * Copyright (C) 2019 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -26,29 +27,15 @@
 #ifndef IOT_CONFIG_H
 #define IOT_CONFIG_H
 
-// #include "FreeRTOS.h"
-// #include "iot_platform_types_freertos.h"
-// #include "aws_clientcredential_keys.h"
-
 #define configPLATFORM_NAME       "AN547"
-
-// /* Certificate for the device.*/
-// #define IOT_DEVICE_CERTIFICATE            keyCLIENT_CERTIFICATE_PEM
-
-// #define IOT_NETWORK_RECEIVE_TASK_STACK_SIZE     configMINIMAL_STACK_SIZE*3
-// #define IOT_NETWORK_RECEIVE_TASK_PRIORITY       configMAX_PRIORITIES-2
-
-// this needed because core_pkcs11_mbedtls.c did not compile
-//#define MBEDTLS_THREADING_C 1
-
-
 
 // FIXME:
 // as I understand this files is for configuring AWS SDK and other libraries
 // for startes configuration was taken from amazon-freertos\tests\include\iot_config_common.h
 
 /* FreeRTOS include. */
-#include "FreeRTOS.h"
+#include "cmsis_os2.h"
+#include "RTOS_config.h"
 
 /* Credentials include. */
 #include <aws_clientcredential.h>
@@ -245,12 +232,12 @@ extern int snprintf( char *,
     #define IOT_THREAD_DEFAULT_STACK_SIZE    2048
 #endif
 #ifndef IOT_THREAD_DEFAULT_PRIORITY
-    #define IOT_THREAD_DEFAULT_PRIORITY      tskIDLE_PRIORITY
+    #define IOT_THREAD_DEFAULT_PRIORITY      osPriorityNormal 
 #endif
 
 /* Platform network configuration. */
 #ifndef IOT_NETWORK_RECEIVE_TASK_PRIORITY
-    #define IOT_NETWORK_RECEIVE_TASK_PRIORITY      ( tskIDLE_PRIORITY + 1 )
+    #define IOT_NETWORK_RECEIVE_TASK_PRIORITY      osPriorityNormal1
 #endif
 #ifndef IOT_NETWORK_RECEIVE_TASK_STACK_SIZE
     #define IOT_NETWORK_RECEIVE_TASK_STACK_SIZE    IOT_THREAD_DEFAULT_STACK_SIZE
@@ -310,46 +297,6 @@ typedef struct IotNetworkCredentials   IotTestNetworkCredentials_t;
 #define IotTestNetwork_Init()    IOT_NETWORK_SUCCESS
 #define IotTestNetwork_Cleanup()
 
-
-
-// // FIXME!!!
-// // added from aws_demo.h so MQTT demo will compile
-// #include "platform/iot_network.h"
-// #include "platform/iot_threads.h"
-
-// /**
-//  * @brief All C SDK demo functions have this signature.
-//  */
-// typedef int (* demoFunction_t)( bool awsIotMqttMode,
-//                                 const char * pIdentifier,
-//                                 void * pNetworkServerInfo,
-//                                 void * pNetworkCredentialInfo,
-//                                 const IotNetworkInterface_t * pNetworkInterface );
-
-
-// typedef void (* networkConnectedCallback_t)( bool awsIotMqttMode,
-//                                              const char * pIdentifier,
-//                                              void * pNetworkServerInfo,
-//                                              void * pNetworkCredentialInfo,
-//                                              const IotNetworkInterface_t * pNetworkInterface );
-
-// typedef void (* networkDisconnectedCallback_t)( const IotNetworkInterface_t * pNetworkInteface );
-
-// //void runDemoTask( void * pArgument );
-
-// //void DEMO_RUNNER_RunDemos( void );
-
-// typedef struct demoContext
-// {
-//     /* Network types for the demo */
-//     uint32_t networkTypes;
-//     /* Function pointers to be set by the implementations for the demo */
-//     demoFunction_t demoFunction;
-//     networkConnectedCallback_t networkConnectedCallback;
-//     networkDisconnectedCallback_t networkDisconnectedCallback;
-// } demoContext_t;
-
-
-
+#define iotconfigUSE_PORT_SPECIFIC_HOOKS 0
 
 #endif /* IOT_CONFIG_H */

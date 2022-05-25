@@ -1,6 +1,7 @@
 /*
  * FreeRTOS TLS V1.3.1
  * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -26,9 +27,7 @@
 #ifndef __AWS__TLS__H__
 #define __AWS__TLS__H__
 
-#ifndef INC_FREERTOS_H
-    #error "include FreeRTOS.h must appear in source files before include iot_tls.h"
-#endif
+#include "RTOS_config.h"
 
 /**
  * @defgroup TlsErrors TLS Error Codes

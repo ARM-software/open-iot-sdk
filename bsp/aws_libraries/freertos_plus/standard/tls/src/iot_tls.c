@@ -1,6 +1,7 @@
 /*
  * FreeRTOS TLS V1.3.1
  * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -24,13 +25,12 @@
  */
 
 /* FreeRTOS includes. */
-#include "FreeRTOS.h"
+#include "cmsis_os2.h"
 #include "FreeRTOSIPConfig.h"
 #include "iot_tls.h"
 #include "iot_crypto.h"
 #include "core_pkcs11_config.h"
 #include "core_pkcs11.h"
-#include "task.h"
 #include "aws_clientcredential_keys.h"
 #include "iot_default_root_certificates.h"
 #include "core_pki_utils.h"
@@ -56,6 +56,8 @@
 #include <string.h>
 #include <time.h>
 #include <stdio.h>
+
+#define ERRNO_NOSPACE 28
 
 /**
  * @brief Represents string to be logged when mbedTLS returned error
@@ -1001,7 +1003,7 @@ BaseType_t TLS_Recv( void * pvContext,
             /* If xResult == 0, then no data was received (and there is no error).
              * The secure sockets API supports non-blocking read, so stop the loop,
              * but don't flag an error. */
-        } while( ( xResult == MBEDTLS_ERR_SSL_WANT_READ ) );
+        } while( xResult == MBEDTLS_ERR_SSL_WANT_READ );
     }
     else
     {
@@ -1044,7 +1046,7 @@ BaseType_t TLS_Send( void * pvContext,
                 /* Sent data, so update the tally and keep looping. */
                 xWritten += ( size_t ) xResult;
             }
-            else if( ( 0 == xResult ) || ( -pdFREERTOS_ERRNO_ENOSPC == xResult ) )
+            else if( ( 0 == xResult ) || ( -ERRNO_NOSPACE == xResult ) )
             {
                 /* No data sent. The secure sockets
                  * API supports non-blocking send, so stop the loop but don't

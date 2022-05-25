@@ -1,6 +1,7 @@
 /*
  * corePKCS11 V2.0.0
  * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -26,24 +27,6 @@
 #ifndef __THREADING_ALT_H__
 #define __THREADING_ALT_H__
 
-
-#include "FreeRTOS.h"
-#include "semphr.h"
-
-/**
- * @brief Mutex struct used to synchronize mbed TLS operations.
- *
- */
-typedef struct
-{
-    SemaphoreHandle_t mutex; /**< @brief FreeRTOS semaphore. */
-    char is_valid;           /**< @brief Flag used by mbedTLS to track wether a mutex is valid. */
-} mbedtls_threading_mutex_t;
-
-extern void mbedtls_threading_set_alt( void ( * mutex_init )( mbedtls_threading_mutex_t * ),
-                                       void ( * mutex_free )( mbedtls_threading_mutex_t * ),
-                                       int ( * mutex_lock )( mbedtls_threading_mutex_t * ),
-                                       int ( * mutex_unlock )( mbedtls_threading_mutex_t * ) );
-
+#include "mbedtls_threading_cmsis_rtos.h"
 
 #endif /* ifndef __THREADING_ALT_H__ */

@@ -1,17 +1,6 @@
-/*
- * Copyright (c) 2021 Arm Limited
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+
+/* Copyright (c) 2021-2022, Arm Limited and Contributors. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 #include <algorithm>
@@ -20,6 +9,7 @@
 #include <string>
 #include <utility>
 #include <array>
+#include <stdbool.h>
 
 #include "ml_interface.h"
 #include "bsp_serial.h"
@@ -35,29 +25,25 @@
 #include "UseCaseCommonUtils.hpp"
 #include "audio_processing.h"
 
-#define EthosU_IRQn            (56)         /* Ethos-Uxx Interrupt */
-#define SEC_ETHOS_U55_BASE     (0x48102000) /* Ethos-U55 base address*/
-#define SEC_ETHOS_U55_TA0_BASE (0x48103000) /* Ethos-U55's timing adapter 0 base address */
-#define SEC_ETHOS_U55_TA1_BASE (0x48103200) /* Ethos-U55's timing adapter 1 base address */
+#include "ethos-u55.h" /* Mem map and configuration definitions of the Ethos U55 */
 
 #include "smm_mps3.h"    /* Mem map for MPS3 peripherals. */
 #include "glcd_mps3.h"   /* LCD functions. */
 #include "timer_mps3.h"  /* Timer functions. */
 #include "device_mps3.h" /* FPGA level definitions and functions. */
 
-#include "ethosu_driver.h" /* Arm Ethos-U55 driver header */
+#include "ethosu_driver.h"  /* Arm Ethos-U55 driver header */
+#include "timing_adapter.h" /* Driver header of the timing adapter */
 
 #include "hal.h"
 #include <vector>
 #include <functional>
-#include "FreeRTOS.h"
-#include "atomic.h"
-#include "semphr.h"
-#include "queue.h"
+#include "cmsis_os2.h"
 
 extern "C" {
 #include "fvp_sai.h"
 #include "hal/sai_api.h"
+#include "hal-toolbox/critical_section_api.h"
 }
 
 #define AUDIO_BLOCK_NUM   (4)
@@ -89,9 +75,9 @@ int16_t shared_audio_buffer[AUDIO_BUFFER_SIZE / 2];
 const int kAudioSampleFrequency = 16000;
 
 // Processing state
-static QueueHandle_t ml_msg_queue = NULL;
-static QueueHandle_t ml_mqtt_msg_queue = NULL;
-SemaphoreHandle_t ml_mutex = NULL;
+static osMessageQueueId_t ml_msg_queue = NULL;
+static osMessageQueueId_t ml_mqtt_msg_queue = NULL;
+osMutexId_t ml_mutex = NULL;
 ml_processing_state_t ml_processing_state;
 ml_processing_change_handler_t ml_processing_change_handler = NULL;
 void *ml_processing_change_ptr = NULL;
@@ -119,13 +105,17 @@ const char *get_inference_result_string(ml_processing_state_t ref_state)
 void ml_task_inference_start()
 {
     const ml_msg_t msg = {ML_EVENT_START};
-    xQueueSend(ml_msg_queue, &msg, (TickType_t)0);
+    if (osMessageQueuePut(ml_msg_queue, (void *)&msg, 0, 0) != osOK) {
+        printf_err("Failed to send message to ml_msg_queue\r\n");
+    }
 }
 
 void ml_task_inference_stop()
 {
     const ml_msg_t msg = {ML_EVENT_STOP};
-    xQueueSend(ml_msg_queue, &msg, (TickType_t)0);
+    if (osMessageQueuePut(ml_msg_queue, (void *)&msg, 0, 0) != osOK) {
+        printf_err("Failed to send message to ml_msg_queue\r\n");
+    }
 }
 } // extern "C" {
 
@@ -135,10 +125,11 @@ static bool ml_lock()
 {
     bool success = false;
     if (ml_mutex) {
-        if (xSemaphoreTake(ml_mutex, portMAX_DELAY) == pdTRUE) {
-            success = true;
+        osStatus_t status = osMutexAcquire(ml_mutex, osWaitForever);
+        if (status != osOK) {
+            printf_err("osMutexAcquire ml_mutex failed %d\r\n", status);
         } else {
-            printf_err(("Failed to acquire ml_mutex"));
+            success = true;
         }
     }
     return success;
@@ -148,10 +139,11 @@ static bool ml_unlock()
 {
     bool success = false;
     if (ml_mutex) {
-        if (xSemaphoreGive(ml_mutex) == pdTRUE) {
-            success = true;
+        osStatus_t status = osMutexRelease(ml_mutex);
+        if (status != osOK) {
+            printf_err("osMutexRelease ml_mutex failed %d\r\n", status);
         } else {
-            printf_err(("Failed to release ml_mutex"));
+            success = true;
         }
     }
     return success;
@@ -166,7 +158,9 @@ void set_ml_processing_state(ml_processing_state_t new_state)
     if (new_state != ml_processing_state) {
         // mqtt_send_inference_result(new_state);
         const ml_mqtt_msg_t msg = {new_state};
-        xQueueSend(ml_mqtt_msg_queue, &msg, (TickType_t)0);
+        if (osMessageQueuePut(ml_mqtt_msg_queue, (void *)&msg, 0, 0) != osOK) {
+            printf_err("Failed to send message to ml_mqtt_msg_queue\r\n");
+        }
 
         ml_processing_state = new_state;
         if (ml_processing_change_handler) {
@@ -267,15 +261,24 @@ template <typename T> struct CircularSlidingWindow {
         assert(window_size % stride_size == 0);
     }
 
+    ~CircularSlidingWindow()
+    {
+        osSemaphoreDelete(semaphore);
+    }
+
     void next(T *dest)
     {
         // Compute the block that contains the stride
         size_t first_block = current_stride / strides_per_block();
         auto last_block = ((current_stride * stride_size + window_size - 1) / block_size) % block_count;
 
-        // Go to sleep if one of the block is not available.
+        // Go to sleep if one of the block that contains the next stride is being written.
+        // If the stride is already loaded, copy it into the destination buffer.
         while (first_block == get_block_under_write() || last_block == get_block_under_write()) {
-            xSemaphoreTake(semaphore, portMAX_DELAY);
+            osStatus_t status = osSemaphoreAcquire(semaphore, osWaitForever);
+            if (status != osOK) {
+                printf_err("osSemaphoreAcquire failed %d\r\n", status);
+            }
         }
 
         // Copy the data into the destination buffer
@@ -306,9 +309,8 @@ template <typename T> struct CircularSlidingWindow {
         self->block_under_write = ((self->block_under_write + 1) % self->block_count);
 
         // Wakeup task waiting
-        BaseType_t task_woken_up = pdFALSE;
-        xSemaphoreGiveFromISR(self->semaphore, &task_woken_up);
-        portYIELD_FROM_ISR(task_woken_up);
+        (void)osSemaphoreRelease(self->semaphore);
+        // safe to return error, this can signal multiple times before the reader acquires the semaphore
     }
 
 private:
@@ -324,20 +326,20 @@ private:
 
     size_t get_block_under_write() const
     {
-        ATOMIC_ENTER_CRITICAL();
+        hal_critical_section_enter();
         auto result = block_under_write;
-        ATOMIC_EXIT_CRITICAL();
+        hal_critical_section_exit();
         return result;
     }
 
     const T *buffer;
-    size_t block_size;
+    size_t block_size; /* write size */
     size_t block_count;
     size_t window_size;
-    size_t stride_size;
+    size_t stride_size; /* read size, smaller than write size */
     size_t block_under_write = 0;
     size_t current_stride = 0;
-    SemaphoreHandle_t semaphore = xSemaphoreCreateBinary();
+    osSemaphoreId_t semaphore = osSemaphoreNew(1U, 1U, NULL);
 };
 
 /**
@@ -466,7 +468,7 @@ void ProcessAudio(ApplicationContext &ctx)
     ml_msg_t msg;
     while (true) {
         while (true) {
-            if (xQueueReceive(ml_msg_queue, &msg, 0) == pdPASS) {
+            if (osMessageQueueGet(ml_msg_queue, &msg, NULL, 0) == osOK) {
                 if (msg.event == ML_EVENT_STOP) {
                     /* jump out to outer loop */
                     break;
@@ -512,7 +514,7 @@ void ProcessAudio(ApplicationContext &ctx)
             ++audio_index;
         } /* while (true) */
 
-        while (xQueueReceive(ml_msg_queue, &msg, portMAX_DELAY) == pdPASS) {
+        while (osMessageQueueGet(ml_msg_queue, &msg, NULL, osWaitForever) == osOK) {
             if (msg.event == ML_EVENT_START) {
                 break;
             } /* else it's ML_EVENT_STOP so we keep waiting */
@@ -633,10 +635,9 @@ GetFeatureCalculator(audio::DsCnnMFCC &mfcc, TfLiteTensor *inputTensor, size_t c
         }
 
     } else {
-        mfccFeatureCalc = mfccFeatureCalc =
-            FeatureCalc<float>(inputTensor, cacheSize, [&mfcc](std::vector<int16_t> &audioDataWindow) {
-                return mfcc.MfccCompute(audioDataWindow);
-            });
+        mfccFeatureCalc = FeatureCalc<float>(inputTensor, cacheSize, [&mfcc](std::vector<int16_t> &audioDataWindow) {
+            return mfcc.MfccCompute(audioDataWindow);
+        });
     }
     return mfccFeatureCalc;
 }
@@ -741,6 +742,7 @@ static int arm_npu_init(void)
 
     /* If the platform has timing adapter blocks along with Ethos-U55 core
      * block, initialise them here. */
+    // cppcheck-suppress knownConditionTrueFalse
     if (0 != (err = _arm_npu_timing_adapter_init())) {
         return err;
     }
@@ -840,37 +842,59 @@ int ml_interface_init()
     return 0;
 }
 
-void ml_task(void *)
+void ml_task(void *arg)
 {
-    ml_mutex = xSemaphoreCreateMutex();
+    (void)arg;
 
-    ml_msg_queue = xQueueCreate(10, sizeof(ml_msg_t));
+    ml_mutex = osMutexNew(NULL);
+    if (!ml_mutex) {
+        printf_err("Failed to create ml_mutex\r\n");
+        return;
+    }
+
+    ml_msg_queue = osMessageQueueNew(10, sizeof(ml_msg_t), NULL);
+    if (!ml_msg_queue) {
+        printf_err("Failed to create ml msg queue\r\n");
+        return;
+    }
 
     while (1) {
         ml_msg_t msg;
-        if (xQueueReceive(ml_msg_queue, &msg, portMAX_DELAY) == pdPASS) {
+        if (osMessageQueueGet(ml_msg_queue, &msg, NULL, osWaitForever) == osOK) {
             if (msg.event == ML_EVENT_START) {
                 break;
             } /* else it's ML_EVENT_STOP so we keep waiting the loop */
+        } else {
+            printf_err("osMessageQueueGet ml msg queue failed\r\n");
+            return;
         }
     }
 
     if (ml_interface_init() < 0) {
-        printf_err("ml_interface_init failed\n");
+        printf_err("ml_interface_init failed\r\n");
         return;
     }
 
     ProcessAudio(caseContext);
 }
 
-void ml_mqtt_task(void *)
+void ml_mqtt_task(void *arg)
 {
-    ml_mqtt_msg_queue = xQueueCreate(2, sizeof(ml_mqtt_msg_t));
+    (void)arg;
+
+    ml_mqtt_msg_queue = osMessageQueueNew(2, sizeof(ml_mqtt_msg_t), NULL);
+    if (!ml_mqtt_msg_queue) {
+        printf_err("Failed to create a ml mqtt msg queue\r\n");
+        return;
+    }
 
     while (1) {
         ml_mqtt_msg_t msg;
-        if (xQueueReceive(ml_mqtt_msg_queue, &msg, portMAX_DELAY) == pdPASS) {
+        if (osMessageQueueGet(ml_mqtt_msg_queue, &msg, NULL, osWaitForever) == osOK) {
             mqtt_send_inference_result(msg.state);
+        } else {
+            printf_err("osMessageQueueGet ml mqtt msg queue failed\r\n");
+            return;
         }
     }
 }

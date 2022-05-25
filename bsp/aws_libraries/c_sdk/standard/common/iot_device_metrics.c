@@ -1,6 +1,7 @@
 /*
  * FreeRTOS Common V1.2.0
  * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -37,7 +38,8 @@
 #include "iot_config.h"
 
 #include "platform/iot_clock.h"
-#include "iot_atomic.h"
+#include "bootstrap/mbed_critical.h"
+#include "bootstrap/mbed_atomic.h"
 
 /*
  * @brief Total length of the hash in bytes.
@@ -315,12 +317,12 @@ static void _generateDeviceMetrics( const char * pDeviceIdentifier,
 
 static void _atomicSpinlock_lock( uint32_t * lock )
 {
-    uint32_t current = 0;
     uint32_t store = 1;
 
     for( ; ; )
     {
-        if( Atomic_CompareAndSwap_u32( lock, store, current ) == 1 )
+        uint32_t current = 0;
+        if( core_util_atomic_cas_u32( lock, &current, store ) == 1 )
         {
             break;
         }
@@ -332,12 +334,12 @@ static void _atomicSpinlock_lock( uint32_t * lock )
 
 static void _atomicSpinlock_unlock( uint32_t * lock )
 {
-    uint32_t current = 1;
     uint32_t store = 0;
 
     for( ; ; )
     {
-        if( Atomic_CompareAndSwap_u32( lock, store, current ) == 1 )
+        uint32_t current = 1;
+        if( core_util_atomic_cas_u32( lock, &current, store ) == 1 )
         {
             break;
         }

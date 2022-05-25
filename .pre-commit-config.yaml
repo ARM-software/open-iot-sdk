@@ -1,5 +1,15 @@
 # See https://pre-commit.com for more information
 # See https://pre-commit.com/hooks.html for more hooks
+exclude: >
+    (?x)^(
+        bsp/aws_configs/|
+        bsp/aws_libraries/|
+        bsp/freertos-platform/|
+        bsp/freertos-config/|
+        bsp/default_credentials/|
+        bsp/tf_m_targets/|
+        kws/ota/
+    )
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v3.2.0
@@ -11,12 +21,8 @@ repos:
     rev: v13.0.0
     hooks:
     -   id: clang-format
-        exclude: >
-            (?x)^(
-                bsp/aws_configs/|
-                bsp/aws_libraries/|
-                bsp/freertos-platform/|
-                bsp/default_credentials/|
-                bsp/tf_m_targets/|
-                kws/ota/
-            )
+-   repo: https://git.gitlab.oss.arm.com/engineering/iot-m-sw/open-iot-sdk/tools/developer-tools.git
+    rev: 5fecffb086eb00767e9763f242c91dda5020a4cf
+    hooks:
+    -   id: cppcheck
+    -   id: banned-api

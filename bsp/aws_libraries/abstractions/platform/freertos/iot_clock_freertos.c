@@ -1,6 +1,7 @@
 /*
  * FreeRTOS Platform V1.1.2
  * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -25,7 +26,7 @@
 
 /**
  * @file iot_clock_freertos.c
- * @brief Implementation of the functions in iot_clock.h for FreeRTOS systems.
+ * @brief Implementation of the functions in iot_clock.h for CMSIS systems.
  */
 
 /* The config header is always included first. */
@@ -33,11 +34,12 @@
 
 /* Standard includes. */
 #include <stdio.h>
+#include "cmsis_os2.h"
+#include "os_tick.h"
 
 /* Platform clock include. */
 #include "platform/iot_platform_types_freertos.h"
 #include "platform/iot_clock.h"
-#include "task.h"
 
 /* Configure logs for the functions in this file. */
 #ifdef IOT_LOG_LEVEL_PLATFORM
@@ -63,30 +65,9 @@
 
 /*-----------------------------------------------------------*/
 
-/*  Private Callback function for timer expiry, delegate work to a Task to free
- *  up the timer task for managing other timers */
-static void prvTimerCallback( TimerHandle_t xTimerHandle )
-{
-    _IotSystemTimer_t * pxTimer = ( _IotSystemTimer_t * ) pvTimerGetTimerID( xTimerHandle );
-
-    /* The value of the timer ID, set in timer_create, should not be NULL. */
-    configASSERT( pxTimer != NULL );
-
-    /* Restart the timer if it is periodic. */
-    if( pxTimer->xTimerPeriod > 0 )
-    {
-        xTimerChangePeriod( xTimerHandle, pxTimer->xTimerPeriod, 0 );
-    }
-
-    /* Call timer Callback from this task */
-    pxTimer->threadRoutine( ( void * ) pxTimer->pArgument );
-}
-
-/*-----------------------------------------------------------*/
-
-bool IotClock_GetTimestring( char * pBuffer,
-                             size_t bufferSize,
-                             size_t * pTimestringLength )
+bool IotClock_GetTimestring(char *pBuffer,
+                            size_t bufferSize,
+                            size_t *pTimestringLength)
 {
     uint64_t milliSeconds = IotClock_GetTimeMs();
     int timestringLength = 0;
@@ -113,29 +94,41 @@ bool IotClock_GetTimestring( char * pBuffer,
 
 uint64_t IotClock_GetTimeMs( void )
 {
-    TimeOut_t xCurrentTime = { 0 };
+    static uint32_t lastCount;
+    static uint64_t overflows = 0;
 
-    /* This must be unsigned because the behavior of signed integer overflow is undefined. */
-    uint64_t ullTickCount = 0ULL;
+    /* This is called by the scheduler but also by the logger so we need a mutex. */
+    /* We can do the creation here since this is guaranteed to be first called by the scheduler. */
+    static mutex_id = 0;
+    if (!mutex_id)
+    {
+        mutex_id = osMutexNew(NULL);
+    }
 
-    /* Get the current tick count and overflow count. vTaskSetTimeOutState()
-     * is used to get these values because they are both static in tasks.c. */
-    vTaskSetTimeOutState( &xCurrentTime );
+    osMutexAcquire(mutex_id, 0);
 
-    /* Adjust the tick count for the number of times a TickType_t has overflowed. */
-    ullTickCount = ( uint64_t ) ( xCurrentTime.xOverflowCount ) << ( sizeof( TickType_t ) * 8 );
+    uint32_t tickCount = osKernelGetTickCount();
 
-    /* Add the current tick count. */
-    ullTickCount += xCurrentTime.xTimeOnEntering;
+    if ( tickCount < lastCount )
+    {
+        overflows++;
+    }
+
+    lastCount = tickCount;
+
+    osMutexRelease(mutex_id);
+
+    uint64_t tickResult = tickCount;
+    tickResult = tickResult + overflows * UINT32_MAX;
 
     /* Return the ticks converted to Milliseconds */
-    return ullTickCount * _MILLISECONDS_PER_TICK;
+    return ( tickResult * _MILLISECONDS_PER_TICK );
 }
 /*-----------------------------------------------------------*/
 
 void IotClock_SleepMs( uint32_t sleepTimeMs )
 {
-    vTaskDelay( pdMS_TO_TICKS( sleepTimeMs ) );
+    osDelay( pdMS_TO_TICKS( sleepTimeMs ) );
 }
 
 /*-----------------------------------------------------------*/
@@ -144,55 +137,47 @@ bool IotClock_TimerCreate( IotTimer_t * pNewTimer,
                            IotThreadRoutine_t expirationRoutine,
                            void * pArgument )
 {
-    _IotSystemTimer_t * pxTimer = ( _IotSystemTimer_t * ) pNewTimer;
-
     configASSERT( pNewTimer != NULL );
     configASSERT( expirationRoutine != NULL );
 
-    IotLogDebug( "Creating new timer %p.", pNewTimer );
+    IotLogDebug( "Delaying creation of timer %p.", pxTimer );
 
     /* Set the timer expiration routine, argument and period */
-    pxTimer->threadRoutine = expirationRoutine;
-    pxTimer->pArgument = pArgument;
-    pxTimer->xTimerPeriod = 0;
-
-    /* Create a new FreeRTOS timer. This call will not fail because the
-     * memory for it has already been allocated, so the output parameter is
-     * also set. */
-    pxTimer->timer = ( TimerHandle_t ) xTimerCreateStatic( "timer",                  /* Timer name. */
-                                                           portMAX_DELAY,            /* Initial timer period. Timers are created disarmed. */
-                                                           pdFALSE,                  /* Don't auto-reload timer. */
-                                                           ( void * ) pxTimer,       /* Timer id. */
-                                                           prvTimerCallback,         /* Timer expiration callback. */
-                                                           &pxTimer->xTimerBuffer ); /* Pre-allocated memory for timer. */
+    pNewTimer->timerId = 0;
+    pNewTimer->callback = expirationRoutine;
+    pNewTimer->callbackArg = pArgument;
 
     return true;
 }
 
 /*-----------------------------------------------------------*/
 
+static osTimerId_t SafeTimerDelete(osTimerId_t timerId)
+{
+    if( timerId != 0 )
+    {
+        if( osTimerDelete( timerId ) != osOK )
+        {
+            IotLogError( "Failed to delete timer %p.", pTimer );
+        }
+        else
+        {
+            timerId = 0;
+        }
+    }
+    return timerId;
+}
+
 void IotClock_TimerDestroy( IotTimer_t * pTimer )
 {
-    _IotSystemTimer_t * pTimerInfo = ( _IotSystemTimer_t * ) pTimer;
-
-    configASSERT( pTimerInfo != NULL );
-    configASSERT( pTimerInfo->timer != NULL );
+    if( pTimer == NULL )
+    {
+        IotLogError( "Timer doesn't exist. Can't destroy it." );
+    }
 
     IotLogDebug( "Destroying timer %p.", pTimer );
 
-    if( xTimerIsTimerActive( pTimerInfo->timer ) == pdTRUE )
-    {
-        /* Stop the FreeRTOS timer. Because the timer is statically allocated, no call
-         * to xTimerDelete is necessary. The timer is stopped so that it's not referenced
-         * anywhere. xTimerStop will not fail when it has unlimited block time. */
-        ( void ) xTimerStop( pTimerInfo->timer, portMAX_DELAY );
-
-        /* Wait until the timer stop command is processed. */
-        while( xTimerIsTimerActive( pTimerInfo->timer ) == pdTRUE )
-        {
-            vTaskDelay( 1 );
-        }
-    }
+    pTimer->timerId = SafeTimerDelete( pTimer->timerId );
 }
 
 /*-----------------------------------------------------------*/
@@ -201,22 +186,30 @@ bool IotClock_TimerArm( IotTimer_t * pTimer,
                         uint32_t relativeTimeoutMs,
                         uint32_t periodMs )
 {
-    _IotSystemTimer_t * pTimerInfo = ( _IotSystemTimer_t * ) pTimer;
+    if ( pTimer == NULL || pTimer->timerId == 0 ) {
+        IotLogError( "Timer doesn't exist. Can't Arm it." );
+    }
 
-    configASSERT( pTimerInfo != NULL );
+    pTimer->timerId = SafeTimerDelete( pTimer->timerId );
 
-    TimerHandle_t xTimerHandle = pTimerInfo->timer;
+    osTimerType_t timer_type = ( 0 == periodMs ) ? osTimerOnce : osTimerPeriodic;
 
-    IotLogDebug( "Arming timer %p with timeout %llu and period %llu.",
-                 pTimer,
-                 relativeTimeoutMs,
-                 periodMs );
+    pTimer->timerId = osTimerNew( pTimer->callback, timer_type, pTimer->callbackArg, NULL );
 
-    /* Set the timer period in ticks */
-    pTimerInfo->xTimerPeriod = pdMS_TO_TICKS( periodMs );
+    if( pTimer->timerId == NULL )
+    {
+        IotLogError( "Failed to create timer %p.", pTimer );
+    }
+    else
+    {
+        IotLogDebug("Arming timer %p with timeout %llu.", pTimer, relativeTimeoutMs);
+        if (relativeTimeoutMs != periodMs)
+        {
+            IotLogError( "Requested periodicity %llu couldn't be set. Period must be the same as first timeout.", relativeTimeoutMs );
+        }
 
-    /* Set the timer to expire after relativeTimeoutMs, and restart it. */
-    ( void ) xTimerChangePeriod( xTimerHandle, pdMS_TO_TICKS( relativeTimeoutMs ), portMAX_DELAY );
+        osTimerStart( pTimer->timerId, pdMS_TO_TICKS( relativeTimeoutMs ) );
+    }
 
     return true;
 }

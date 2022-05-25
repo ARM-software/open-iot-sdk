@@ -1,6 +1,7 @@
 /*
  * FreeRTOS Secure Sockets V1.3.0
  * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -50,10 +51,11 @@
  */
 #include <stdint.h>
 #include <stddef.h>
+#include "cmsis_os2.h"
+#include "RTOS_config.h"
 #include "iot_secure_sockets_config.h"
 #include "iot_secure_sockets_config_defaults.h"
 #include "iot_secure_sockets_wrapper_metrics.h"
-#include "iot_lib_init.h"
 
 /**
  * @ingroup SecureSockets_datatypes_handles
@@ -464,13 +466,13 @@ int32_t SOCKETS_Close( Socket_t xSocket );
  *  - Berkeley Socket Options
  *    - @ref SOCKETS_SO_RCVTIMEO
  *      - Sets the receive timeout
- *      - pvOptionValue (TickType_t) is the number of milliseconds that the
+ *      - pvOptionValue (uint32_t) is the number of milliseconds that the
  *      receive function should wait before timing out.
  *      - Setting pvOptionValue = 0 causes receive to wait forever.
  *      - See PORT_SPECIFIC_LINK for device limitations.
  *    - @ref SOCKETS_SO_SNDTIMEO
  *      - Sets the send timeout
- *      - pvOptionValue (TickType_t) is the number of milliseconds that the
+ *      - pvOptionValue (uint32_t) is the number of milliseconds that the
  *      send function should wait before timing out.
  *      - Setting pvOptionValue = 0 causes send to wait forever.
  *      - See PORT_SPECIFIC_LINK for device limitations.

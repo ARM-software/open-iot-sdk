@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2017 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
- * Copyright (c) 2019-2020 Arm Limited. All Rights Reserved.
+ * Copyright (c) 2019-2022 Arm Limited. All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -45,45 +45,65 @@ extern int convert_pem_to_der( const unsigned char * pucInput, size_t xLen,
  */
 P11KeyConfig_t P11KeyConfig __attribute__(( section( "tasks_share" ) ));
 
-/**
-* @brief Helper function to convert MBedtls ECP group to PSA ECC group ID
-*
-* @param[in] grpid         MBedtls ECP group ID.
-*
-* @return PSA ECC group ID.
-*/
-
-static psa_ecc_family_t mbedtls_ecc_group_to_psa( mbedtls_ecp_group_id grpid )
+/** Convert an ECC curve identifier from the Mbed TLS encoding to PSA.
+ *
+ * \note This function is provided solely for the convenience of
+ *       Mbed TLS and may be removed at any time without notice.
+ *
+ * \param grpid         An Mbed TLS elliptic curve identifier
+ *                      (`MBEDTLS_ECP_DP_xxx`).
+ * \param[out] bits     On success, the bit size of the curve.
+ *
+ * \return              The corresponding PSA elliptic curve identifier
+ *                      (`PSA_ECC_FAMILY_xxx`).
+ * \return              \c 0 on failure (\p grpid is not recognized).
+ */
+static inline psa_ecc_family_t mbedtls_ecc_group_to_psa( mbedtls_ecp_group_id grpid,
+                                                        size_t *bits )
 {
     switch( grpid )
     {
         case MBEDTLS_ECP_DP_SECP192R1:
+            *bits = 192;
             return( PSA_ECC_FAMILY_SECP_R1 );
         case MBEDTLS_ECP_DP_SECP224R1:
+            *bits = 224;
             return( PSA_ECC_FAMILY_SECP_R1 );
         case MBEDTLS_ECP_DP_SECP256R1:
+            *bits = 256;
             return( PSA_ECC_FAMILY_SECP_R1 );
         case MBEDTLS_ECP_DP_SECP384R1:
+            *bits = 384;
             return( PSA_ECC_FAMILY_SECP_R1 );
         case MBEDTLS_ECP_DP_SECP521R1:
+            *bits = 521;
             return( PSA_ECC_FAMILY_SECP_R1 );
         case MBEDTLS_ECP_DP_BP256R1:
+            *bits = 256;
             return( PSA_ECC_FAMILY_BRAINPOOL_P_R1 );
         case MBEDTLS_ECP_DP_BP384R1:
+            *bits = 384;
             return( PSA_ECC_FAMILY_BRAINPOOL_P_R1 );
         case MBEDTLS_ECP_DP_BP512R1:
+            *bits = 512;
             return( PSA_ECC_FAMILY_BRAINPOOL_P_R1 );
         case MBEDTLS_ECP_DP_CURVE25519:
+            *bits = 255;
             return( PSA_ECC_FAMILY_MONTGOMERY );
         case MBEDTLS_ECP_DP_SECP192K1:
+            *bits = 192;
             return( PSA_ECC_FAMILY_SECP_K1 );
         case MBEDTLS_ECP_DP_SECP224K1:
+            *bits = 224;
             return( PSA_ECC_FAMILY_SECP_K1 );
         case MBEDTLS_ECP_DP_SECP256K1:
+            *bits = 256;
             return( PSA_ECC_FAMILY_SECP_K1 );
         case MBEDTLS_ECP_DP_CURVE448:
+            *bits = 448;
             return( PSA_ECC_FAMILY_MONTGOMERY );
         default:
+            *bits = 0;
             return( 0 );
     }
 }
@@ -116,6 +136,7 @@ CK_OBJECT_HANDLE PKCS11PSASaveObject( CK_ATTRIBUTE_PTR pxClass,
     CK_RV xReturn;
     psa_status_t uxStatus = PSA_SUCCESS;
     mbedtls_ecp_group_id curve_id;
+    size_t bits;
     const mbedtls_ecp_keypair *ec;
     unsigned char cPrivateKeyRaw[EC_PRIVATE_KEY_MAX_LENGTH];
     size_t xPrivateKeyRawSize = 0;
@@ -236,7 +257,7 @@ CK_OBJECT_HANDLE PKCS11PSASaveObject( CK_ATTRIBUTE_PTR pxClass,
                 case MBEDTLS_PK_ECDSA:
                     ec = (mbedtls_ecp_keypair *) (pvContext->pk_ctx );
                     curve_id = mbedtls_ecp_curve_info_from_grp_id( ec->grp.id )->grp_id;
-                    uxKeyType = PSA_KEY_TYPE_ECC_KEY_PAIR(mbedtls_ecc_group_to_psa(curve_id));
+                    uxKeyType = PSA_KEY_TYPE_ECC_KEY_PAIR(mbedtls_ecc_group_to_psa(curve_id, &bits));
                     uxAlgorithm = PSA_ALG_ECDSA( PSA_ALG_SHA_256 );
                     xPrivateKeyRawSize = ( ec->grp.nbits + 7 ) / 8;
                     if( 0 != mbedtls_mpi_write_binary( &ec->d,
@@ -299,7 +320,7 @@ CK_OBJECT_HANDLE PKCS11PSASaveObject( CK_ATTRIBUTE_PTR pxClass,
                 case MBEDTLS_PK_ECDSA:
                     ec = (mbedtls_ecp_keypair *) (pvContext->pk_ctx );
                     curve_id = mbedtls_ecp_curve_info_from_grp_id( ec->grp.id )->grp_id;
-                    uxKeyType = PSA_KEY_TYPE_ECC_PUBLIC_KEY(mbedtls_ecc_group_to_psa(curve_id));
+                    uxKeyType = PSA_KEY_TYPE_ECC_PUBLIC_KEY(mbedtls_ecc_group_to_psa(curve_id, &bits));
                     uxAlgorithm = PSA_ALG_ECDSA( PSA_ALG_SHA_256 );
                     if( 0 !=get_public_key_ECPoint( pucData,
                                                     ulDataSize,
@@ -355,7 +376,7 @@ CK_OBJECT_HANDLE PKCS11PSASaveObject( CK_ATTRIBUTE_PTR pxClass,
                 case MBEDTLS_PK_ECDSA:
                     ec = (mbedtls_ecp_keypair *) (pvContext->pk_ctx );
                     curve_id = mbedtls_ecp_curve_info_from_grp_id( ec->grp.id )->grp_id;
-                    uxKeyType = PSA_KEY_TYPE_ECC_PUBLIC_KEY(mbedtls_ecc_group_to_psa(curve_id));
+                    uxKeyType = PSA_KEY_TYPE_ECC_PUBLIC_KEY(mbedtls_ecc_group_to_psa(curve_id, &bits));
                     uxAlgorithm = PSA_ALG_ECDSA( PSA_ALG_SHA_256 );
                     if( 0 !=get_public_key_ECPoint( pucData,
                                                     ulDataSize,

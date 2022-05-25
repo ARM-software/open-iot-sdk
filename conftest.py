@@ -21,6 +21,7 @@ import subprocess
 def pytest_addoption(parser):
     parser.addoption("--build-path", action="store", default="build")
     parser.addoption("--credentials-path", action="store", default="credentials")
+    parser.addoption("--avh", action="store", default="/arm/fvp/VHT_Corstone_SSE-300_Ethos-U55")
 
 
 @pytest.fixture()
@@ -36,8 +37,8 @@ def credentials_path(pytestconfig):
 
 
 @pytest.fixture
-def fvp_path():
-    yield '/opt/VHT/VHT_Corstone_SSE-300_Ethos-U55'
+def fvp_path(pytestconfig):
+    yield pytestconfig.getoption("--avh")
 
 
 @pytest.fixture
@@ -66,6 +67,10 @@ def fvp(fvp_path, build_path, vsi_script_path, binary_path):
         '-C', 'mps3_board.smsc_91c111.enabled=1',
         '-C', 'mps3_board.hostbridge.userNetworking=1',
         '-C', 'mps3_board.DISABLE_GATING=1',
+        '-C', 'cpu0.CFGDTCMSZ=10',
+        '-C', 'cpu0.CFGITCMSZ=10',
+        '-C', 'cpu0.INITNSVTOR=0x00000000',
+        '-C', 'cpu0.INITSVTOR=0x10000000',
         '-V', f'{vsi_script_path}'
     ]
 

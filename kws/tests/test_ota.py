@@ -34,15 +34,15 @@ def test_ota(aws_resources, fvp):
     # Traces expected in the output
     expectations = [
         'Starting bootloader',
-        'Booting TFM v',
+        'Booting TF-M v1.6.0',
+        'Starting scheduler from ns main',
         'Write certificate...',
-        'Firmware version: 1.0.0',
-        'starting scheduler from ns main',
+        'Firmware version: 0.0.1',
         '[INF] network up, starting demo',
         'Found valid event handler for state transition: State=[WaitingForFileBlock], Event=[ReceivedFileBlock]',
         'Received final block of the update',
         'Image upgrade secondary slot -> primary slot',
-        'Firmware version: 1.4.0',
+        'Firmware version: 0.0.2',
     ]
 
     fails = [

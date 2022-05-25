@@ -1,7 +1,7 @@
 /*
  * AWS IoT Over-the-air Update v3.0.0
  * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
- * Copyright (c) 2021 Arm Limited. All rights reserved.
+ * Copyright (c) 2021-2022 Arm Limited. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -89,12 +89,12 @@ static OtaPalStatus_t CalculatePSAImageID( uint8_t slot,
 {
     uint32_t ulImageType = 0;
 
-    if( pFileContext == NULL || pxImageID == NULL )
+    if( pFileContext == NULL || pxImageID == NULL || pFileContext->pFilePath == NULL )
     {
         return OTA_PAL_COMBINE_ERR( OtaPalUninitialized, 0 );
     }
 
-    /* pFilePath field is get from the OTA server. */
+    /* pFilePath field is got from the OTA server. */
     if( memcmp( pFileContext->pFilePath, "secure image", strlen("secure image") ) == 0 )
     {
         ulImageType = FWU_IMAGE_TYPE_SECURE;
@@ -112,7 +112,7 @@ static OtaPalStatus_t CalculatePSAImageID( uint8_t slot,
         return OTA_PAL_COMBINE_ERR( OtaPalRxFileCreateFailed, 0 );
     }
 
-    *pxImageID = FWU_CALCULATE_IMAGE_ID(slot, ulImageType, ( uint16_t )( uintptr_t )pFileContext);
+    *pxImageID = FWU_CALCULATE_IMAGE_ID(slot, ulImageType, ( uint16_t ) ((uintptr_t) pFileContext));
 
     return OTA_PAL_COMBINE_ERR( OtaPalSuccess, 0 );
 }
@@ -207,7 +207,7 @@ OtaPalStatus_t otaPal_CreateFileForRx( OtaFileContext_t * const pFileContext )
 
     pxSystemContext = pFileContext;
     xOTAImageID = ulImageID;
-    pFileContext->pFile = (uint8_t*)&xOTAImageID;
+    pFileContext->pFile = (uint8_t*) &xOTAImageID;
     return OTA_PAL_COMBINE_ERR( OtaPalSuccess, 0 );
 }
 
@@ -300,18 +300,30 @@ int16_t otaPal_WriteBlock( OtaFileContext_t * const pFileContext,
                            uint8_t * const pcData,
                            uint32_t ulBlockSize )
 {
+    uint32_t ulWriteLength, ulDoneLength = 0;
+
     if( (pFileContext == NULL) || (pFileContext != pxSystemContext ) || ( xOTAImageID == TFM_FWU_INVALID_IMAGE_ID ) )
     {
         return -1;
     }
 
-    /* Call the TF-M Firmware Update service to write image data. */
-    if( psa_fwu_write( ( psa_image_id_t ) xOTAImageID, ( size_t ) ulOffset , ( const void * )pcData, ( size_t ) ulBlockSize ) != PSA_SUCCESS)
+    while (ulBlockSize > 0)
     {
-        return -3;
+        ulWriteLength = ulBlockSize <= PSA_FWU_MAX_BLOCK_SIZE ?
+                        ulBlockSize : PSA_FWU_MAX_BLOCK_SIZE;
+        /* Call the TF-M Firmware Update service to write image data. */
+        if( psa_fwu_write( ( psa_image_id_t ) xOTAImageID,
+                           ( size_t ) ulOffset + ulDoneLength,
+                           ( const void * )(pcData + ulDoneLength),
+                           ( size_t ) ulWriteLength ) != PSA_SUCCESS )
+        {
+            return -1;
+        }
+        ulBlockSize -= ulWriteLength;
+        ulDoneLength += ulWriteLength;
     }
 
-    return ulBlockSize;
+    return ulDoneLength;
 }
 
 /**
@@ -419,7 +431,6 @@ OtaPalStatus_t otaPal_SetPlatformImageState( OtaFileContext_t * const pFileConte
                 break;
             default:
                 return OTA_PAL_COMBINE_ERR( OtaPalBadImageState, 0 );
-                break;
         }
     }
     else
@@ -429,11 +440,11 @@ OtaPalStatus_t otaPal_SetPlatformImageState( OtaFileContext_t * const pFileConte
             /* The image can only be set as accepted after a reboot. So the pxSystemContext should be NULL. */
             return OTA_PAL_COMBINE_ERR( OtaPalCommitFailed, 0 );
         }
-        else
-        {
-            /* The image is still downloading and the OTA process will not continue. The image is in
-             * the secondary slot and does not impact the later update process. So nothing to do here. */
-        }
+
+        /* The image is still downloading and the OTA process will not continue. The image is in
+         * the secondary slot and does not impact the later update process. So nothing to do in
+         * other state.
+         */
     }
 
     return OTA_PAL_COMBINE_ERR( OtaPalSuccess, 0 );
@@ -479,7 +490,10 @@ OtaPalImageState_t otaPal_GetPlatformImageState( OtaFileContext_t * const pFileC
         ucSlot = FWU_IMAGE_ID_SLOT_STAGE;
     }
 
-    CalculatePSAImageID( ucSlot, pFileContext, &ulImageID );
+    if( CalculatePSAImageID( ucSlot, pFileContext, &ulImageID ) != OTA_PAL_COMBINE_ERR( OtaPalSuccess, 0 ) )
+    {
+        return OtaPalImageStateInvalid;
+    }
 
     uxStatus = psa_fwu_query( ulImageID, &xImageInfo );
     if( uxStatus != PSA_SUCCESS )
@@ -496,6 +510,9 @@ OtaPalImageState_t otaPal_GetPlatformImageState( OtaFileContext_t * const pFileC
         default:
             return OtaPalImageStateInvalid;
     }
+
+    /* It should never goes here. But just for coding safety. */
+    return OtaPalImageStateInvalid;
 }
 
 /**

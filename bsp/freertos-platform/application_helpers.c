@@ -1,33 +1,37 @@
-/*
- * Copyright (c) 2021 Arm Limited
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/* Copyright (c) 2021-2022, Arm Limited and Contributors. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 #include "stdio.h"
 #include <string.h>
 #include "bsp_serial.h"
 #include "print_log.h"
-
-#include "FreeRTOS.h"
-#include "task.h"
-#include "FreeRTOS_IP.h"
-
+#include "cmsis_os2.h" 
+#include "RTOS_config.h"
 /* includes for TFM */
 #include "tfm_ns_interface.h"
 #include "psa/protected_storage.h"
 #include "psa/crypto.h"
+#include "emac_cs300.h"
 
+/* Provide EMAC interface to LwIP. This is required until MDH provides a factory
+ * function for it.
+ */
+mdh_emac_t *lwip_emac_get_default_instance(void)
+{
+    return cs300_emac_get_default_instance();
+}
+
+/* -----------------------------------------------------------------------------
+ *  Helper declarations
+ * -----------------------------------------------------------------------------
+ */
+/**
+ * Freertos heap declaration. It's required when configAPPLICATION_ALLOCATED_HEAP i set.
+ */
+#if (configAPPLICATION_ALLOCATED_HEAP == 1)
+    uint8_t ucHeap[configTOTAL_HEAP_SIZE];
+#endif /* configAPPLICATION_ALLOCATED_HEAP */
 
 /* -----------------------------------------------------------------------------
  *  Helper functions
@@ -36,8 +40,15 @@
 
 void vAssertCalled( const char * pcFile, unsigned long ulLine )
 {
-    print_log("Assert called %s:%lu", pcFile, ulLine);
+    print_log("Assert failed %s:%lu", pcFile, ulLine);
     while(1);
+}
+
+void configASSERT(uint32_t condition)
+{
+    if ( condition == 0 ) {
+        vAssertCalled( __FILE__, __LINE__ );
+    }
 }
 
 
