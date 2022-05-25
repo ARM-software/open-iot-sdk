@@ -19,7 +19,7 @@ workflow:
 
 
 Build ARMC6:
-  image: ${OPEN_IOT_SDK_DOCKER_REGISTRY}/armc6:6.16
+  image: ${OPEN_IOT_SDK_DOCKER_REGISTRY}/armc6:6.18
   tags:
     - iotmsw-amd64
   stage: build

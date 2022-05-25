@@ -16,13 +16,13 @@ pre-commit:
   tags:
     - iotmsw-amd64
   image: ${OPEN_IOT_SDK_DOCKER_REGISTRY}/sanity:v1
-  stage: build
+  stage: .pre
   script:
     - pre-commit run --all-files --verbose --show-diff-on-failure
 
 
 license:
-  stage: build
+  stage: .pre
   trigger:
     include: .gitlab/ci/pipeline/license.yml
     strategy: depend

@@ -11,3 +11,8 @@ repos:
     rev: v13.0.0
     hooks:
     -   id: clang-format
+-   repo: https://git.gitlab.oss.arm.com/engineering/iot-m-sw/open-iot-sdk/tools/developer-tools.git
+    rev: c67e53e3d69c84be73b6027d5754eaf8950144e5
+    hooks:
+    -   id: cppcheck
+    -   id: banned-api
