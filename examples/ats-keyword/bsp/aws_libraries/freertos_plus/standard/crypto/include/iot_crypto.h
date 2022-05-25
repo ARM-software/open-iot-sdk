@@ -1,6 +1,7 @@
 /*
  * FreeRTOS Crypto V1.1.2
  * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -26,7 +27,7 @@
 #ifndef __AWS_CRYPTO__H__
 #define __AWS_CRYPTO__H__
 
-#include "FreeRTOS.h"
+#include "RTOS_config.h"
 
 /**
  * @brief Commonly used buffer sizes for storing cryptographic hash computation

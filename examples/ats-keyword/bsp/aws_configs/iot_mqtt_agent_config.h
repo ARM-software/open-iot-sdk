@@ -1,6 +1,7 @@
 /*
  * Amazon FreeRTOS V1.4.8
  * Copyright (C) 2019 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -31,7 +32,7 @@
 #ifndef _AWS_MQTT_AGENT_CONFIG_H_
 #define _AWS_MQTT_AGENT_CONFIG_H_
 
-#include "FreeRTOS.h"
+#include "cmsis_os2.h"
 
 /**
  * @brief Controls whether or not to report usage metrics to the

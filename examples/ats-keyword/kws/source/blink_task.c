@@ -1,30 +1,15 @@
-/*
- * Copyright (c) 2021 Arm Limited
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/* Copyright (c) 2021-2022, Arm Limited and Contributors. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "stdio.h"
-#include "FreeRTOS.h"
-#include "semphr.h"
-#include "task.h"
-#include "queue.h"
-#include "timers.h"
-#include "tfm_ns_interface.h"
-#include "psa/protected_storage.h"
-#include "bsp_serial.h"
+#include <stdio.h>
 #include "blink_task.h"
 #include "ml_interface.h"
+
+#include "cmsis_os2.h"
+#include <stdbool.h>
+
+#define BLINK_TIMER_PERIOD_MS 250
 
 enum {
     LED1 = 1 << 0,
@@ -60,10 +45,10 @@ static ui_msg_t blink_event = {UI_EVENT_BLINK};
 static ui_msg_t ml_state_change_event = {UI_EVENT_ML_STATE_CHANGE};
 
 // Message queue
-static QueueHandle_t ui_msg_queue = NULL;
+static osMessageQueueId_t ui_msg_queue = NULL;
 
 // Blinking timer
-TimerHandle_t blink_timer;
+static osTimerId_t blink_timer = NULL;
 
 void led_on(uint8_t bits)
 {
@@ -80,15 +65,20 @@ void led_toggle(uint8_t bits)
     *fpgaio_leds ^= bits;
 }
 
-static void blink_timer_cb(TimerHandle_t xTimer)
+static void blink_timer_cb(void *arg)
 {
+    (void)arg;
     // Schedule blink of the led in the event queue
-    xQueueSend(ui_msg_queue, (void *)&blink_event, 0);
+    if (osMessageQueuePut(ui_msg_queue, (void *)&blink_event, 0, 0) != osOK) {
+        printf("Failed to send blink_event message to ui_msg_queue\r\n");
+    }
 }
 
 static void ml_change_handler(void *self, ml_processing_state_t new_state)
 {
-    xQueueSend(ui_msg_queue, (void *)&ml_state_change_event, (TickType_t)0);
+    if (osMessageQueuePut(ui_msg_queue, (void *)&ml_state_change_event, 0, 0) != osOK) {
+        printf("Failed to send ml_state_change_event message to ui_msg_queue\r\n");
+    }
 }
 
 void process_ml_state_change(ml_processing_state_t new_state)
@@ -149,20 +139,25 @@ void process_ml_state_change(ml_processing_state_t new_state)
  * LED1 off and LED2 off      => heard NO
  * LED1 off and LED2 blinking => no/unknown input
  */
-void blink_task(void *pvParameters)
+void blink_task(void *arg)
 {
+    (void)arg;
+
     printf("Blink task started\r\n");
 
     // Create the ui event queue
-    ui_msg_queue = xQueueCreate(10, // In practive at most two items (blink and ml state change) should be in the queue.
-                                sizeof(ui_msg_t));
+    ui_msg_queue = osMessageQueueNew(10, sizeof(ui_msg_t), NULL);
+    if (!ui_msg_queue) {
+        printf("Failed to create a ui msg queue\r\n");
+        return;
+    }
 
     // Configure the timer
-    blink_timer = xTimerCreate("Blink Timer",
-                               portTICK_PERIOD_MS * 25, // timeout
-                               pdTRUE,                  // auto reload
-                               (void *)0,               // initial value
-                               blink_timer_cb);
+    blink_timer = osTimerNew(blink_timer_cb, osTimerPeriodic, NULL, NULL);
+    if (!blink_timer) {
+        printf("Create blink timer failed\r\n");
+        return;
+    }
 
     // Connect to the ML processing
     on_ml_processing_change(ml_change_handler, NULL);
@@ -171,11 +166,16 @@ void blink_task(void *pvParameters)
     led_off(LED_ALL);
 
     // start the blinking timer
-    xTimerStart(blink_timer, portMAX_DELAY);
+    uint32_t ticks_interval = ((uint64_t)BLINK_TIMER_PERIOD_MS * (uint64_t)osKernelGetTickFreq()) / 1000;
+    osStatus_t res = osTimerStart(blink_timer, ticks_interval);
+    if (res) {
+        printf("osTimerStart failed %d\r\n", res);
+        return;
+    }
 
     while (1) {
         ui_msg_t msg;
-        if (xQueueReceive(ui_msg_queue, &msg, portMAX_DELAY) != pdPASS) {
+        if (osMessageQueueGet(ui_msg_queue, &msg, NULL, osWaitForever) != osOK) {
             continue;
         }
 

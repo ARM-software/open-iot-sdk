@@ -20,8 +20,8 @@ def test_ml(fvp):
     # Traces expected in the output
     expectations = [
         'Starting bootloader',
-        'Booting TFM v1.4.1',
-        'starting scheduler from ns main',
+        'Booting TF-M v1.6.0',
+        'Starting scheduler from ns main',
         'Ethos-U55 device initialised',
         'ML interface initialised',
         'ML_HEARD_ON',

@@ -1,6 +1,7 @@
 /*
  * FreeRTOS Common V1.1.3
  * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -31,9 +32,8 @@
 #ifndef AWS_LOGGING_TASK_H
 #define AWS_LOGGING_TASK_H
 
-#ifndef INC_FREERTOS_H
-    #error "include FreeRTOS.h must appear in source files before include iot_logging_task.h"
-#endif
+#include "cmsis_os2.h"
+#include "RTOS_config.h"
 
 /**
  * @brief Initialization function for logging task.

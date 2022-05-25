@@ -1,4 +1,4 @@
-# Copyright (c) 2021 ARM Limited. All rights reserved.
+# Copyright (c) 2021-2022, Arm Limited and Contributors. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 cmake_minimum_required(VERSION 3.18)
@@ -86,7 +86,10 @@ target_include_directories(${LIB_NAME}
         ${PRJ_DIR}/bsp/aws_libraries/freertos_plus/standard/tls/include
         ${PRJ_DIR}/bsp/aws_libraries/logging/include
         ${PRJ_DIR}/bsp/aws_libraries/3rdparty/lwip_osal/include
+        ${PRJ_DIR}/bsp/freertos-config
         ${PRJ_DIR}/bsp/freertos-platform
+        $<$<STREQUAL:${TS_TARGET},Corstone-300>:${CMAKE_CURRENT_SOURCE_DIR}/ethos-u55/an547>
+        $<$<STREQUAL:${TS_TARGET},Corstone-310>:${CMAKE_CURRENT_SOURCE_DIR}/ethos-u55/an555>
 )
 
 target_sources(${LIB_NAME}
@@ -97,8 +100,8 @@ target_sources(${LIB_NAME}
 
 target_link_libraries(${LIB_NAME}
     PRIVATE
-        FreeRTOS-Plus-TCP
-        freertos-kernel
+        cmsis-rtos-api
+        mcu-driver-hal
         tfm-ns-interface
 )
 
@@ -112,10 +115,10 @@ target_compile_definitions(${LIB_NAME}
         -DARM_NPU=1
         -DBL2
         -DCONFIG_KWS_SCORE_THRESHOLD=0.8
-        -DCPU_CORTEX_M55=1
+        -D$<$<STREQUAL:${CMAKE_SYSTEM_PROCESSOR},cortex-m55>:CPU_CORTEX_M55=1>
+        -D$<$<STREQUAL:${CMAKE_SYSTEM_PROCESSOR},cortex-m85>:CPU_CORTEX_M85=1>
         -DDAUTH_CHIP_DEFAULT
         -DLIBRARY_LOG_LEVEL=3
-        -DMBEDTLS_CONFIG_FILE=\"<aws_mbedtls_config.h>\"
         -DMCUBOOT_DATA_SHARING=1
         -DMCUBOOT_IMAGE_NUMBER=2
         -DMCUBOOT_SIGN_RSA
@@ -158,38 +161,36 @@ target_link_libraries(${LIB_NAME}
         bsp_serial
 )
 
-target_compile_options(${LIB_NAME}
-    PRIVATE
-        --target=arm-arm-none-eabi
-        -Ofast
-        -Wall
-        -Wno-error=cpp
-        -Wno-ignored-optimization-argument
-        -Wno-unused-command-line-argument
-        -c
-        -fdata-sections
-        -ffunction-sections
-        -fno-builtin
-        -funsigned-char
-        -g
-        -masm=auto
-        -mcpu=cortex-m55+fp+mve
-        -mfloat-abi=hard
-        -nostdlib
-        -std=c11
-)
+# OS alloc wrapper
+if (TARGET cmsis-rtx)
+    add_library(cmsis-rtx-freertos-alloc-wrapper STATIC)
+    target_sources(cmsis-rtx-freertos-alloc-wrapper
+        PRIVATE
+            cmsis-config/rtx-alloc.c
+    )
+endif()
+
 
 # Add Startup library
 add_library(startup
-    "${TFM_PLATFORM}/device/source/startup_an547_ns.c"
+    $<$<STREQUAL:${TS_TARGET},Corstone-300>:${TFM_PLATFORM}/device/source/startup_an547_ns.c>
+    $<$<STREQUAL:${TS_TARGET},Corstone-310>:${TFM_PLATFORM}/device/source/startup_corstone_polaris_ns.c>
 )
 
-mbed_set_linker_script(startup "${PRJ_DIR}/bsp/an547_ns.sct")
+set(link_definitions_file ${CMAKE_CURRENT_BINARY_DIR}/link_definitions.txt)
 
-ExternalProject_Get_Property(tf-m SOURCE_DIR)
+if (${TS_TARGET} STREQUAL "Corstone-300")
+    mdh_generate_definitions_for_linker(mdh-arm-corstone-300-startup ${link_definitions_file})
+    mdh_set_linker_script(startup "${PRJ_DIR}/bsp/an547_ns.sct" ${link_definitions_file})
+elseif(${TS_TARGET} STREQUAL "Corstone-310")
+    mdh_generate_definitions_for_linker(mdh-arm-corstone-310-startup ${link_definitions_file})
+    mdh_set_linker_script(startup "${PRJ_DIR}/bsp/an555_ns.sct" ${link_definitions_file})
+endif()
+
+FetchContent_GetProperties(tf-m)
 target_include_directories(startup
     PRIVATE
-        "${SOURCE_DIR}/platform/include"
+        "${tf-m_SOURCE_DIR}/platform/include"
 )
 
 target_link_libraries(startup

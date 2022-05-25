@@ -1,6 +1,7 @@
 /*
  * FreeRTOS Crypto V1.1.2
  * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -24,7 +25,7 @@
  */
 
 /* FreeRTOS includes. */
-#include "FreeRTOS.h"
+#include "cmsis_os2.h"
 #include "iot_crypto.h"
 
 /* mbedTLS includes. */
@@ -85,95 +86,6 @@ typedef struct SignatureVerificationState
         return pvNew;
     }
 #endif /* ifdef CONFIG_MEDTLS_USE_AFR_MEMORY */
-
-/*-----------------------------------------------------------*/
-/*--------- mbedTLS threading functions for FreeRTOS --------*/
-/*--------------- See MBEDTLS_THREADING_ALT -----------------*/
-/*-----------------------------------------------------------*/
-
-/**
- * @brief Implementation of mbedtls_mutex_init for thread-safety.
- *
- */
-void aws_mbedtls_mutex_init( mbedtls_threading_mutex_t * mutex )
-{
-    mutex->mutex = xSemaphoreCreateMutex();
-
-    if( mutex->mutex != NULL )
-    {
-        mutex->is_valid = 1;
-    }
-    else
-    {
-        mutex->is_valid = 0;
-        CRYPTO_PRINT( ( "Failed to initialize mbedTLS mutex.\r\n" ) );
-    }
-}
-
-/**
- * @brief Implementation of mbedtls_mutex_free for thread-safety.
- *
- */
-void aws_mbedtls_mutex_free( mbedtls_threading_mutex_t * mutex )
-{
-    if( mutex->is_valid == 1 )
-    {
-        vSemaphoreDelete( mutex->mutex );
-        mutex->is_valid = 0;
-    }
-}
-
-/**
- * @brief Implementation of mbedtls_mutex_lock for thread-safety.
- *
- * @return 0 if successful, MBEDTLS_ERR_THREADING_MUTEX_ERROR if timeout,
- * MBEDTLS_ERR_THREADING_BAD_INPUT_DATA if the mutex is not valid.
- */
-int aws_mbedtls_mutex_lock( mbedtls_threading_mutex_t * mutex )
-{
-    int ret = MBEDTLS_ERR_THREADING_BAD_INPUT_DATA;
-
-    if( mutex->is_valid == 1 )
-    {
-        if( xSemaphoreTake( mutex->mutex, portMAX_DELAY ) )
-        {
-            ret = 0;
-        }
-        else
-        {
-            ret = MBEDTLS_ERR_THREADING_MUTEX_ERROR;
-            CRYPTO_PRINT( ( "Failed to obtain mbedTLS mutex.\r\n" ) );
-        }
-    }
-
-    return ret;
-}
-
-/**
- * @brief Implementation of mbedtls_mutex_unlock for thread-safety.
- *
- * @return 0 if successful, MBEDTLS_ERR_THREADING_MUTEX_ERROR if timeout,
- * MBEDTLS_ERR_THREADING_BAD_INPUT_DATA if the mutex is not valid.
- */
-int aws_mbedtls_mutex_unlock( mbedtls_threading_mutex_t * mutex )
-{
-    int ret = MBEDTLS_ERR_THREADING_BAD_INPUT_DATA;
-
-    if( mutex->is_valid == 1 )
-    {
-        if( xSemaphoreGive( mutex->mutex ) )
-        {
-            ret = 0;
-        }
-        else
-        {
-            ret = MBEDTLS_ERR_THREADING_MUTEX_ERROR;
-            CRYPTO_PRINT( ( "Failed to unlock mbedTLS mutex.\r\n" ) );
-        }
-    }
-
-    return ret;
-}
 
 /*-----------------------------------------------------------*/
 
@@ -252,10 +164,7 @@ void CRYPTO_Init( void )
 void CRYPTO_ConfigureThreading( void )
 {
     /* Configure mbedtls to use FreeRTOS mutexes. */
-    mbedtls_threading_set_alt( aws_mbedtls_mutex_init,
-                               aws_mbedtls_mutex_free,
-                               aws_mbedtls_mutex_lock,
-                               aws_mbedtls_mutex_unlock );
+    mbedtls_threading_set_cmsis_rtos();
 }
 
 /**

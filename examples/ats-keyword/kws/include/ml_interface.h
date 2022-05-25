@@ -1,17 +1,5 @@
-/*
- * Copyright (c) 2021 Arm Limited
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/* Copyright (c) 2021-2022, Arm Limited and Contributors. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 #ifndef ML_INTERFACE_H
@@ -64,10 +52,10 @@ void on_ml_processing_change(ml_processing_change_handler_t handler, void *self)
 void ml_process_audio(const int16_t *buffer, size_t size);
 
 /* this task does actual ml processing and is gated by the net task which let's it run if no ota job is present */
-void ml_task(void *);
+void ml_task(void *arg);
 
 /* task used to communicate ml results via mqtt */
-void ml_mqtt_task(void *);
+void ml_mqtt_task(void *arg);
 
 #ifdef __cplusplus
 }

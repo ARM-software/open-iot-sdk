@@ -94,16 +94,20 @@ ssh -i "MyKeyPair.pem" ubuntu@<instance ip address>
 To update the application, a set of scripts is included to setup the environment,
 build applications, run them and test them. These scripts must be executed in the AVH AMI.
 
+### Connect
+
 Open your favorite terminal program or linux shell application and connect to the AVH AMI instance:
 
 ```sh
 ssh ubuntu@<your-ec2-instance>
 ```
 
+### Prepare environment
+
 Clone the repository in the AMI:
 
 ```sh
-git clone https://github.com/ARM-software/ATS-Keyword && cd ATS-Keyword
+git clone <keyword repository> && cd <keyword repository>
 ```
 
 Synchronize git submodules, setup ML and apply required patches:
@@ -115,15 +119,29 @@ Synchronize git submodules, setup ML and apply required patches:
 Install additional python dependencies required to run tests and sign binaries:
 
 ```sh
-pip3 install click imgtool pytest cbor intelhex
+sudo apt install python3.8-venv
+```
+
+```sh
+python3.8 -m pip install imgtool cbor2
+```
+
+```sh
+python3.9 -m pip install imgtool cffi intelhex cbor2 cbor pytest click
+```
+
+Make python user packages visible in the shell.
+
+```sh
 export PATH=$PATH:/home/ubuntu/.local/bin
 ```
 
-Update cmake:
+### Build
 
-```sh
-sudo snap refresh cmake --channel=latest/stable
-```
+There are currently two applications available: `blink` and `kws`.
+The `ats.sh` scripts takes the command `bootstrap`, `build` or `run` as first  parameter.
+The second parameter is the name of the application to build or run.
+Below we use `kws` as the name of the application, replace it with `blinky` to build that instead.
 
 Build the kws application:
 
@@ -131,17 +149,37 @@ Build the kws application:
 ./ats.sh build kws
 ```
 
+This will by default build the application in the `build` directory for the `Corstone-300` target using the `FreeRTOS` OS. This is equivalent to:
+
+```sh
+./ats.sh build kws --target Corstone-300 --rtos FREERTOS --path build
+```
+
+To build for Corstone-310 use `--target Corstone-310`. To build using the RTX RTOS implementation use `--rtos RTX`.
+
+You can have multiple builds with different parameters side by side by changing the `--path` parameter to something unique to each build configuration. This speed up the re-build process when working with multiple targets and RTOS.
+
+### Run
+
 Run the kws application:
+
 ```sh
 ./ats.sh run kws
 ```
+
+The `run` command can take the `--path` switch to run a particular build. It uses `build` directory by default.
+This is equivalent to:
+
+```sh
+./ats.sh run kws --path build
+```
+
+### Integration tests
 
 Launch the kws integration tests:
 ```sh
 pytest -s kws/tests/test_ml.py
 ```
-
-To build, run and launch a test of the blinky application, replace `kws` by `blinky`.
 
 ## Updating audio data
 
@@ -348,7 +386,7 @@ With ML Eval Kit you can run inferences on either a custom neural network on Eth
 
 # License and contributions
 
-The software is provided under the Apache-2.0 license. All contributions to software and documents are licensed by contributors under the same license model as the software/document itself (ie. inbound == outbound licensing). ATS-Keyword may reuse software already licensed under another license, provided the license is permissive in nature and compatible with Apache v2.0.
+The software is provided under the Apache-2.0 license. All contributions to software and documents are licensed by contributors under the same license model as the software/document itself (ie. inbound == outbound licensing). Open IoT SDK may reuse software already licensed under another license, provided the license is permissive in nature and compatible with Apache v2.0.
 
 Folders containing files under different permissive license than Apache 2.0 are listed in the LICENSE file.
 

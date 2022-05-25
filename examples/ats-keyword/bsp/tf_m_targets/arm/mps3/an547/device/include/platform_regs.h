@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2021 Arm Limited
+ * Copyright (c) 2019-2022 Arm Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -329,22 +329,6 @@ struct sse300_nsacfg_t {
 struct cpu0_pwrctrl_t {
     volatile uint32_t cpupwrcfg;      /* 0x000 (R/W) CPU 0 Local Power
                                        *             Configuration */
-    volatile uint32_t reserved0[1011];
-    volatile uint32_t pidr4;          /* 0xFD0 (R/ ) Peripheral ID 4 */
-    volatile uint32_t reserved1[3];
-    volatile uint32_t pidr0;          /* 0xFE0 (R/ ) Peripheral ID 0 */
-    volatile uint32_t pidr1;          /* 0xFE4 (R/ ) Peripheral ID 1 */
-    volatile uint32_t pidr2;          /* 0xFE8 (R/ ) Peripheral ID 2 */
-    volatile uint32_t pidr3;          /* 0xFEC (R/ ) Peripheral ID 3 */
-    volatile uint32_t cidr0;          /* 0xFF0 (R/ ) Component ID 0 */
-    volatile uint32_t cidr1;          /* 0xFF4 (R/ ) Component ID 1 */
-    volatile uint32_t cidr2;          /* 0xFF8 (R/ ) Component ID 2 */
-    volatile uint32_t cidr3;          /* 0xFFC (R/ ) Component ID 3 */
-};
-
-struct cpu0_identity_t {
-    volatile uint32_t cpuid;          /* 0x000 (R/ ) Unique CPU 0 Identity
-                                       *             Number */
     volatile uint32_t reserved0[1011];
     volatile uint32_t pidr4;          /* 0xFD0 (R/ ) Peripheral ID 4 */
     volatile uint32_t reserved1[3];

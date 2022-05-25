@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2019 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
- * Copyright (c) 2019-2020 Arm Limited. All Rights Reserved.
+ * Copyright (c) 2019-2022 Arm Limited. All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -35,8 +35,8 @@
 #include <stdio.h>
 #include <string.h>
 
-/* FreeRTOS includes. */
-#include "FreeRTOS.h"
+/* CMSIS includes. */
+#include "cmsis_os2.h"
 
 /* PKCS#11 includes. */
 #include "core_pkcs11_config.h"
@@ -92,7 +92,7 @@ typedef struct P11Object_t
  */
 typedef struct P11ObjectList_t
 {
-    SemaphoreHandle_t xMutex; /* Mutex that protects write operations to the xObjects array. */
+    osMutexId_t xMutex; /* Mutex that protects write operations to the xObjects array. */
     P11Object_t xObjects[ pkcs11configMAX_NUM_OBJECTS ];
 } P11ObjectList_t;
 
@@ -119,11 +119,11 @@ typedef struct P11Session
     CK_BBOOL xFindObjectInit;
     CK_BYTE * pxFindObjectLabel;
     uint8_t xFindObjectLabelLength;
-    SemaphoreHandle_t xVerifyMutex; /* Protects the verification key from being modified while in use. */
+    osMutexId_t xVerifyMutex; /* Protects the verification key from being modified while in use. */
     psa_key_handle_t uxVerifyKey;
     CK_MECHANISM_TYPE xVerifyMechanism;    /* The mechanism of verify operation in progress. Set during C_VerifyInit. */
     psa_algorithm_t xVerifyAlgorithm; /* Verify algorithm that is compatible with the type of key. */
-    SemaphoreHandle_t xSignMutex;   /* Protects the signing key from being modified while in use. */
+    osMutexId_t xSignMutex;   /* Protects the signing key from being modified while in use. */
     psa_key_handle_t uxSignKey;
     CK_MECHANISM_TYPE xSignMechanism;      /* Mechanism of the sign operation in progress. Set during C_SignInit. */
     psa_algorithm_t xSignAlgorithm; /* Signature algorithm that is compatible with the type of key. */
@@ -234,15 +234,15 @@ CK_RV prvAddObjectToList( CK_OBJECT_HANDLE xPalHandle,
                           size_t xLabelLength )
 {
     CK_RV xResult = CKR_OK;
-    BaseType_t xGotSemaphore;
+    osStatus_t xGotSemaphore;
 
     CK_BBOOL xObjectFound = CK_FALSE;
     int lInsertIndex = -1;
     int lSearchIndex = pkcs11configMAX_NUM_OBJECTS - 1;
 
-    xGotSemaphore = xSemaphoreTake( xP11Context.xObjectList.xMutex, portMAX_DELAY );
+    xGotSemaphore = osMutexAcquire( xP11Context.xObjectList.xMutex, osWaitForever );
 
-    if( xGotSemaphore == pdTRUE )
+    if( xGotSemaphore == osOK )
     {
         for( lSearchIndex = pkcs11configMAX_NUM_OBJECTS - 1; lSearchIndex >= 0; lSearchIndex-- )
         {
@@ -282,7 +282,10 @@ CK_RV prvAddObjectToList( CK_OBJECT_HANDLE xPalHandle,
             }
         }
 
-        xSemaphoreGive( xP11Context.xObjectList.xMutex );
+        xGotSemaphore = osMutexRelease( xP11Context.xObjectList.xMutex );
+        if ( xGotSemaphore != osOK ) { 
+            PKCS11_WARNING_PRINT( ( "WARNING: Failed to release mutex in prvAddObjectToList.\r\n" ) );
+        }
     }
     else
     {
@@ -1158,7 +1161,13 @@ CK_RV prvCreatePublicKey( CK_ATTRIBUTE_PTR pxTemplate,
 CK_RV prvMbedTLS_Initialize( void )
 {
     CK_RV xResult = CKR_OK;
-    SemaphoreHandle_t xMutex = NULL;
+    osMutexId_t xMutex = NULL;
+    const osMutexAttr_t Thread_Mutex_attr = {
+        "pkcs11-mutex",                           // human readable mutex name
+        osMutexRecursive | osMutexPrioInherit,    // attr_bits
+        NULL,                                     // memory for control block   
+        0U                                        // size for control block
+    };
 
     if( xP11Context.xIsInitialized == CK_TRUE )
     {
@@ -1168,7 +1177,7 @@ CK_RV prvMbedTLS_Initialize( void )
     if( xResult == CKR_OK )
     {
         memset( &xP11Context, 0, sizeof( xP11Context ) );
-        xMutex = xSemaphoreCreateMutex();
+        xMutex = osMutexNew(&Thread_Mutex_attr);
         if( xMutex != NULL )
         {
             xP11Context.xObjectList.xMutex = xMutex;
@@ -1238,7 +1247,7 @@ CK_DEFINE_FUNCTION( CK_RV, C_Finalize )( CK_VOID_PTR pvReserved )
         }
         else
         {
-            vSemaphoreDelete( xP11Context.xObjectList.xMutex );
+            osMutexDelete( xP11Context.xObjectList.xMutex );
             memset( &xP11Context, 0, sizeof( xP11Context ) );
 
             /* Close device private key which is a persistent key. Note that here we only close it other than
@@ -1432,6 +1441,14 @@ CK_DEFINE_FUNCTION( CK_RV, C_OpenSession )( CK_SLOT_ID xSlotID,
     CK_BBOOL xSessionMemAllocated = CK_FALSE;
     CK_BBOOL xSignMutexCreated = CK_FALSE;
     CK_BBOOL xVerifyMutexCreated = CK_FALSE;
+    osMutexId_t mutex_id;  
+ 
+    const osMutexAttr_t Thread_Mutex_attr = {
+        "",                                       // human readable mutex name
+        osMutexRecursive | osMutexPrioInherit,    // attr_bits
+        NULL,                                     // memory for control block   
+        0U                                        // size for control block
+    };
 
     ( void ) ( xSlotID );
     ( void ) ( pvApplication );
@@ -1478,7 +1495,7 @@ CK_DEFINE_FUNCTION( CK_RV, C_OpenSession )( CK_SLOT_ID xSlotID,
         {
             memset( pxSessionObj, 0, sizeof( P11Session_t ) );
 
-            pxSessionObj->xSignMutex = xSemaphoreCreateMutex();
+            pxSessionObj->xSignMutex = osMutexNew(&Thread_Mutex_attr);
 
             if( NULL == pxSessionObj->xSignMutex )
             {
@@ -1489,7 +1506,7 @@ CK_DEFINE_FUNCTION( CK_RV, C_OpenSession )( CK_SLOT_ID xSlotID,
                 xSignMutexCreated = CK_TRUE;
             }
 
-            pxSessionObj->xVerifyMutex = xSemaphoreCreateMutex();
+            pxSessionObj->xVerifyMutex = osMutexNew(&Thread_Mutex_attr);
 
             if( NULL == pxSessionObj->xVerifyMutex )
             {
@@ -1533,12 +1550,12 @@ CK_DEFINE_FUNCTION( CK_RV, C_OpenSession )( CK_SLOT_ID xSlotID,
         {
             if( xSignMutexCreated == CK_TRUE )
             {
-                vSemaphoreDelete( pxSessionObj->xSignMutex );
+                osMutexDelete( pxSessionObj->xSignMutex );
             }
 
             if( xVerifyMutexCreated == CK_TRUE )
             {
-                vSemaphoreDelete( pxSessionObj->xVerifyMutex );
+                osMutexDelete( pxSessionObj->xVerifyMutex );
             }
 
             vPortFree( pxSessionObj );
@@ -1564,12 +1581,12 @@ CK_DEFINE_FUNCTION( CK_RV, C_CloseSession )( CK_SESSION_HANDLE xSession )
         pxSession->uxSignKey = 0;
         if( NULL != pxSession->xSignMutex )
         {
-            vSemaphoreDelete( pxSession->xSignMutex );
+            osMutexDelete( pxSession->xSignMutex );
         }
         pxSession->uxVerifyKey = 0;
         if( NULL != pxSession->xVerifyMutex )
         {
-            vSemaphoreDelete( pxSession->xVerifyMutex );
+            osMutexDelete( pxSession->xVerifyMutex );
         }
         if( pxSession->pxHashOperationHandle != NULL )
         {
@@ -1716,7 +1733,7 @@ CK_DECLARE_FUNCTION( CK_RV, C_CreateObject )( CK_SESSION_HANDLE xSession,
 CK_RV prvDeleteObjectFromList( CK_OBJECT_HANDLE xAppHandle )
 {
     CK_RV xResult = CKR_OK;
-    BaseType_t xGotSemaphore = pdFALSE;
+    osStatus_t xGotSemaphore = osError;
     int lIndex = xAppHandle - 1;
 
     if( lIndex >= pkcs11configMAX_NUM_OBJECTS )
@@ -1726,10 +1743,10 @@ CK_RV prvDeleteObjectFromList( CK_OBJECT_HANDLE xAppHandle )
 
     if( xResult == CKR_OK )
     {
-        xGotSemaphore = xSemaphoreTake( xP11Context.xObjectList.xMutex, portMAX_DELAY );
+        xGotSemaphore = osMutexAcquire( xP11Context.xObjectList.xMutex, osWaitForever );
     }
 
-    if( ( xGotSemaphore == pdTRUE ) && ( xResult == CKR_OK ) )
+    if( ( xGotSemaphore == osOK ) && ( xResult == CKR_OK ) )
     {
         if( xP11Context.xObjectList.xObjects[ lIndex ].xHandle != CK_INVALID_HANDLE )
         {
@@ -1740,7 +1757,10 @@ CK_RV prvDeleteObjectFromList( CK_OBJECT_HANDLE xAppHandle )
             xResult = CKR_OBJECT_HANDLE_INVALID;
         }
 
-        xSemaphoreGive( xP11Context.xObjectList.xMutex );
+        xGotSemaphore = osMutexRelease( xP11Context.xObjectList.xMutex );
+        if ( xGotSemaphore != osOK ) { 
+            PKCS11_WARNING_PRINT( ( "WARNING: Failed to release mutex in prvDeleteObjectFromList.\r\n" ) );
+        }
     }
     else
     {
@@ -2713,7 +2733,7 @@ CK_DEFINE_FUNCTION( CK_RV, C_SignInit )( CK_SESSION_HANDLE xSession,
 
     if( xResult == CKR_OK )
     {
-        if( pdTRUE == xSemaphoreTake( pxSession->xSignMutex, portMAX_DELAY ) )
+        if( osOK == osMutexAcquire( pxSession->xSignMutex, osWaitForever ) )
         {
 
             /*
@@ -2752,7 +2772,9 @@ CK_DEFINE_FUNCTION( CK_RV, C_SignInit )( CK_SESSION_HANDLE xSession,
                 pxSession->uxSignKey = 0;
                 xResult = CKR_KEY_HANDLE_INVALID;
             }
-            xSemaphoreGive( pxSession->xSignMutex );
+            if ( osMutexRelease( pxSession->xSignMutex ) != osOK ) { 
+                PKCS11_WARNING_PRINT( ( "WARNING: Failed to release mutex in C_SignInit.\r\n" ) );
+            }
         }
         else
         {
@@ -2897,7 +2919,7 @@ CK_DEFINE_FUNCTION( CK_RV, C_Sign )( CK_SESSION_HANDLE xSession,
             /* Sign the data.*/
             if( CKR_OK == xResult )
             {
-                if( pdTRUE == xSemaphoreTake( pxSessionObj->xSignMutex, portMAX_DELAY ) )
+                if( osOK == osMutexAcquire( pxSessionObj->xSignMutex, osWaitForever ) )
                 {
                     if ( pxSessionObj->uxSignKey == 0 )
                     {
@@ -2920,7 +2942,9 @@ CK_DEFINE_FUNCTION( CK_RV, C_Sign )( CK_SESSION_HANDLE xSession,
                         }
                     }
 
-                    xSemaphoreGive( pxSessionObj->xSignMutex );
+                    if ( osMutexRelease( pxSessionObj->xSignMutex ) != osOK ) { 
+                        PKCS11_WARNING_PRINT( ( "WARNING: Failed to release mutex in C_Sign.\r\n" ) );
+                    }
                 }
                 else
                 {
@@ -3002,7 +3026,7 @@ CK_DEFINE_FUNCTION( CK_RV, C_VerifyInit )( CK_SESSION_HANDLE xSession,
 
     if( xResult == CKR_OK )
     {
-        if( pdTRUE == xSemaphoreTake( pxSession->xVerifyMutex, portMAX_DELAY ) )
+        if( osOK == osMutexAcquire( pxSession->xVerifyMutex, osWaitForever ) )
         {
             xResult = PKCS11PSAGetKeyHandle( pcLabel, xLabelLength, &uxKeyHandle );
             if( xResult == CKR_OK )
@@ -3028,7 +3052,9 @@ CK_DEFINE_FUNCTION( CK_RV, C_VerifyInit )( CK_SESSION_HANDLE xSession,
                 xResult = CKR_KEY_HANDLE_INVALID;
             }
 
-            xSemaphoreGive( pxSession->xVerifyMutex );
+            if ( osMutexRelease( pxSession->xVerifyMutex ) != osOK ) { 
+                PKCS11_WARNING_PRINT( ( "WARNING: Failed to release mutex in C_VerifyInit.\r\n" ) );
+            }
         }
         else
         {
@@ -3152,7 +3178,7 @@ CK_DEFINE_FUNCTION( CK_RV, C_Verify )( CK_SESSION_HANDLE xSession,
 
     if( xResult == CKR_OK )
     {
-        if( pdTRUE == xSemaphoreTake( pxSessionObj->xVerifyMutex, portMAX_DELAY ) )
+        if( osOK == osMutexAcquire( pxSessionObj->xVerifyMutex, osWaitForever ) )
         {
             /* Verify the signature. If a public key is present, use it. */
             if ( pxSessionObj->uxVerifyKey == 0 )
@@ -3187,7 +3213,10 @@ CK_DEFINE_FUNCTION( CK_RV, C_Verify )( CK_SESSION_HANDLE xSession,
                     xResult = CKR_FUNCTION_FAILED;
                 }
             }
-            xSemaphoreGive( pxSessionObj->xVerifyMutex );
+
+            if ( osMutexRelease( pxSessionObj->xVerifyMutex ) != osOK ) { 
+                PKCS11_WARNING_PRINT( ( "WARNING: Failed to release mutex in C_Verify.\r\n" ) );
+            }
         }
         else
         {
@@ -3502,7 +3531,7 @@ CK_DEFINE_FUNCTION( CK_RV, C_GenerateKeyPair )( CK_SESSION_HANDLE xSession,
     if( xResult == CKR_OK )
     {
         uxAlgorithm = PSA_ALG_ECDSA( PSA_ALG_SHA_256 );
-        uxKeyType = PSA_KEY_TYPE_ECC_KEY_PAIR( PSA_ECC_FAMILY_SECP_R1 );
+        uxKeyType = PSA_KEY_TYPE_ECC_PUBLIC_KEY(PSA_ECC_FAMILY_SECP_R1);
         if( strcmp( pxPrivateLabel->pValue,
                     pkcs11configLABEL_DEVICE_PRIVATE_KEY_FOR_TLS ) == 0 )
         {
@@ -3539,7 +3568,7 @@ CK_DEFINE_FUNCTION( CK_RV, C_GenerateKeyPair )( CK_SESSION_HANDLE xSession,
         }
         if ( uxStatus == PSA_SUCCESS )
         {
-            uxKeyType = PSA_KEY_TYPE_ECC_KEY_PAIR( PSA_ECC_FAMILY_SECP_R1 );
+            uxKeyType = PSA_KEY_TYPE_ECC_PUBLIC_KEY( PSA_ECC_FAMILY_SECP_R1 );
             uxAlgorithm = PSA_ALG_ECDSA( PSA_ALG_SHA_256 );
             if( strcmp( pxPublicLabel->pValue,
                         pkcs11configLABEL_DEVICE_PUBLIC_KEY_FOR_TLS ) == 0 )
