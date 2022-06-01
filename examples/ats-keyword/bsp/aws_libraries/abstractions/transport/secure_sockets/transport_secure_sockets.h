@@ -1,6 +1,7 @@
 /*
  * FreeRTOS Transport Secure Sockets V1.0.0
  * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -31,6 +32,9 @@
 #ifndef TRANSPORT_SECURE_SOCKETS_H
 #define TRANSPORT_SECURE_SOCKETS_H
 
+#include "cmsis_os2.h"
+#include "RTOS_config.h"
+
 /* bool is defined in only C99+. */
 #if defined( __cplusplus ) || ( defined( __STDC_VERSION__ ) && ( __STDC_VERSION__ >= 199901L ) )
     #include <stdbool.h>
@@ -44,10 +48,6 @@
 /* Transport interface include. */
 #include "transport_interface.h"
 #include "iot_secure_sockets.h"
-
-/* Kernel include. */
-#include "FreeRTOS.h"
-#include "task.h"
 
 /* Include header that defines log levels. */
 #include "logging_levels.h"

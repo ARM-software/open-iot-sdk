@@ -37,7 +37,7 @@
 ; </h>
  *----------------------------------------------------------------------------*/
 #define __STACK_SIZE    0x00000200
-#define __HEAP_SIZE     0x00000C00
+#define __HEAP_SIZE     (50*1024)
 
 /*--------------------- CMSE Venner Configuration ---------------------------
 ; <h> CMSE Venner Configuration

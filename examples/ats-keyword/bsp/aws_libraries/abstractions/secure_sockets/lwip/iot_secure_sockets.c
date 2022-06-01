@@ -1,6 +1,7 @@
 /*
  * FreeRTOS Secure Sockets V1.3.1
  * Copyright (C) 2021 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -29,47 +30,18 @@
  */
 
 /* Secure Socket interface includes. */
+#include "cmsis_os2.h"
+#include "aws_secure_sockets_config.h"
 #include "iot_secure_sockets.h"
-
-
-#include "lwip/sockets.h"
-#include "lwip/netdb.h"
-#include "lwip/dns.h"
-#include "lwip/err.h"
+#include "iot_socket.h"
+#include "iot_config.h"
 
 #include "iot_tls.h"
 
-#include "iot_atomic.h"
-
-#include "FreeRTOSConfig.h"
-
-#include "task.h"
-
-#include "event_groups.h"
-
+#include <string.h>
 #include <stdbool.h>
 
-/*
- * The loop delay used while waiting for DNS resolution
- * to complete.
- */
-
-#define lwip_dns_resolver_LOOP_DELAY_MS       ( 250 )
-#define lwip_dns_resolver_LOOP_DELAY_TICKS    ( ( TickType_t ) lwip_dns_resolver_LOOP_DELAY_MS / portTICK_PERIOD_MS )
-
-/*
- * The maximum time to wait for DNS resolution
- * to complete.
- */
-#define lwip_dns_resolver_MAX_WAIT_SECONDS    ( 20 )
-
-/*
- * The maximum number of loop iterations to wait for DNS
- * resolution to complete.
- */
-#define lwip_dns_resolver_MAX_WAIT_CYCLES                 \
-    ( ( ( lwip_dns_resolver_MAX_WAIT_SECONDS ) * 1000 ) / \
-      ( lwip_dns_resolver_LOOP_DELAY_MS ) )
+#include "bootstrap/mbed_atomic.h"
 
 /*-----------------------------------------------------------*/
 
@@ -101,9 +73,9 @@ typedef struct _ss_ctx_t
     int send_flag;
     int recv_flag;
 
-    TaskHandle_t rx_handle;
+    osThreadId_t rx_handle;
     void ( * rx_callback )( Socket_t pxSocket );
-    EventGroupHandle_t rx_EventGroup;
+    osEventFlagsId_t rx_EventFlags;
 
     bool enforce_tls;
     void * tls_ctx;
@@ -190,8 +162,7 @@ static void prvSocketsClose( ss_ctx_t * ctx )
  */
 static void prvDecrementRefCount( ss_ctx_t * ctx )
 {
-    if( Atomic_Decrement_u32( &ctx->ulRefcount ) == 1 )
-    {
+    if ( core_util_atomic_decr_u32( &ctx->ulRefcount, 1 ) ) {
         prvSocketsClose( ctx );
     }
 }
@@ -201,7 +172,7 @@ static void prvDecrementRefCount( ss_ctx_t * ctx )
  */
 static void prvIncrementRefCount( ss_ctx_t * ctx )
 {
-    Atomic_Increment_u32( &ctx->ulRefcount );
+    core_util_atomic_incr_u32( &ctx->ulRefcount, 1 );
 }
 
 /*
@@ -213,10 +184,7 @@ static BaseType_t prvNetworkSend( void * pvContext,
 {
     ss_ctx_t * ctx = ( ss_ctx_t * ) pvContext;
 
-    int ret = lwip_send( ctx->ip_socket,
-                         pucData,
-                         xDataLength,
-                         ctx->send_flag );
+    int ret = iotSocketSend( ctx->ip_socket, pucData, xDataLength );
 
     return ( BaseType_t ) ret;
 }
@@ -236,36 +204,26 @@ static BaseType_t prvNetworkRecv( void * pvContext,
 
     configASSERT( ctx->ip_socket >= 0 );
 
-    int ret = lwip_recv( ctx->ip_socket,
-                         pucReceiveBuffer,
-                         xReceiveLength,
-                         ctx->recv_flag );
+    int ret = iotSocketRecv( ctx->ip_socket, pucReceiveBuffer, xReceiveLength );
 
-    if( -1 == ret )
-    {
-        /*
-         * 1. EWOULDBLOCK if the socket is NON-blocking, but there is no data
-         *    when recv is called.
-         * 2. EAGAIN if the socket would block and have waited long enough but
-         *    packet is not received.
-         */
-        if( ( errno == EWOULDBLOCK ) || ( errno == EAGAIN ) )
-        {
-            return SOCKETS_ERROR_NONE; /* timeout or would block */
-        }
-
-        /*
-         * socket is not connected.
-         */
-        if( errno == EBADF )
-        {
+    switch( ret ) {
+        case IOT_SOCKET_EINVAL:
+            return SOCKETS_EINVAL;
+        case IOT_SOCKET_ENOTCONN:
+            return SOCKETS_ENOTCONN;
+        case IOT_SOCKET_ECONNRESET:
+        case IOT_SOCKET_ECONNABORTED:
             return SOCKETS_ECLOSED;
-        }
-    }
-
-    if( ( 0 == ret ) && ( errno == ENOTCONN ) )
-    {
-        ret = SOCKETS_ECLOSED;
+        case IOT_SOCKET_EAGAIN:
+            return SOCKETS_ERROR_NONE; /* timeout or would block */
+        case IOT_SOCKET_ERROR:
+        case IOT_SOCKET_ESOCK:
+            return SOCKETS_SOCKET_ERROR;
+        case 0:
+            if( ( 0 == ret ) && ( xReceiveLength != 0 ) )
+            {
+                ret = SOCKETS_ECLOSED;
+            }
     }
 
     return ( BaseType_t ) ret;
@@ -277,23 +235,7 @@ static void vTaskRxSelect( void * param )
 {
     ss_ctx_t * ctx = ( ss_ctx_t * ) param;
     int s = ctx->ip_socket;
-    struct timeval tv;
-
-    fd_set read_fds;
-    fd_set write_fds;
-    fd_set err_fds;
-
-    FD_ZERO( &read_fds );
-    FD_ZERO( &write_fds );
-    FD_ZERO( &err_fds );
-
-    FD_SET( s, &read_fds );
-    FD_SET( s, &err_fds );
-
     ctx->state = SST_RX_READY;
-
-    tv.tv_sec = SECURE_SOCKETS_SELECT_WAIT_SEC;
-    tv.tv_usec = 0;
 
     while( 1 )
     {
@@ -303,27 +245,36 @@ static void vTaskRxSelect( void * param )
             break;
         }
 
-        if( lwip_select( s + 1, &read_fds, &write_fds, &err_fds, &tv ) == -1 )
+        uint32_t ret;
+        for ( ; ; )
+        {
+            ret = iotSocketRecv( s, NULL, 0 );
+            if ( ret != IOT_SOCKET_EAGAIN )
+            {
+                break;
+            }
+        }
+
+        if (ret == 0)
+        {
+            ctx->rx_callback( ( Socket_t ) ctx );
+        }
+        else
         {
             break;
         }
 
-        if( FD_ISSET( s, &read_fds ) )
-        {
-            ctx->rx_callback( ( Socket_t ) ctx );
-        }
-
-        if( xEventGroupWaitBits( ctx->rx_EventGroup, SOCKETS_START_DELETION, pdTRUE, pdTRUE, 0 ) == SOCKETS_START_DELETION )
+        if( osEventFlagsWait( ctx->rx_EventFlags, SOCKETS_START_DELETION, osFlagsWaitAll, 0 ) == SOCKETS_START_DELETION )
         {
             /* Inform the main task that the event has been received. */
-            ( void ) xEventGroupSetBits( ctx->rx_EventGroup, SOCKETS_COMPLETE_DELETION );
+            ( void ) osEventFlagsSet( ctx->rx_EventFlags, SOCKETS_COMPLETE_DELETION );
             break;
         }
     }
 
     prvDecrementRefCount( ctx );
 
-    vTaskDelete( NULL );
+    osThreadExit();
 }
 
 
@@ -333,28 +284,23 @@ static void prvRxSelectSet( ss_ctx_t * ctx,
                             const void * pvOptionValue )
 {
     BaseType_t xReturned;
-    TaskHandle_t xHandle = NULL;
-    configSTACK_DEPTH_TYPE xStackDepth = socketsconfigRECEIVE_CALLBACK_TASK_STACK_DEPTH;
 
     ctx->rx_callback = ( void ( * )( Socket_t ) )pvOptionValue;
 
     prvIncrementRefCount( ctx );
 
-    ctx->rx_EventGroup = xEventGroupCreate();
+    ctx->rx_EventFlags = osEventFlagsNew( NULL );
 
-    configASSERT( ctx->rx_EventGroup != NULL );
+    configASSERT( ctx->rx_EventFlags != NULL );
 
-    xReturned = xTaskCreate( vTaskRxSelect, /* pvTaskCode */
-                             "rxs",         /* pcName */
-                             xStackDepth,   /* usStackDepth */
-                             ctx,           /* pvParameters */
-                             1,             /* uxPriority */
-                             &xHandle );    /* pxCreatedTask */
+    osThreadAttr_t attr = {
+      .stack_size = socketsconfigRECEIVE_CALLBACK_TASK_STACK_DEPTH,
+      .priority = osPriorityNormal
+    };
 
-    configASSERT( xReturned == pdPASS );
-    configASSERT( xHandle != NULL );
+    ctx->rx_handle = osThreadNew( vTaskRxSelect, ctx, &attr);
 
-    ctx->rx_handle = xHandle;
+    configASSERT( ctx->rx_handle != NULL );
 }
 
 /*-----------------------------------------------------------*/
@@ -362,15 +308,11 @@ static void prvRxSelectSet( ss_ctx_t * ctx,
 static void prvRxSelectClear( ss_ctx_t * ctx )
 {
     /* Inform the vTaskRxSelect to delete itself. */
-    xEventGroupSetBits( ctx->rx_EventGroup, SOCKETS_START_DELETION );
+    osEventFlagsSet( ctx->rx_EventFlags, SOCKETS_START_DELETION );
 
     /* Wait for the task to delete itself. */
-    while( xEventGroupWaitBits( ctx->rx_EventGroup,
-                                SOCKETS_COMPLETE_DELETION,
-                                pdTRUE,
-                                pdTRUE,
-                                pdMS_TO_TICKS( SECURE_SOCKETS_SELECT_WAIT_SEC * 1000 ) ) !=
-           SOCKETS_COMPLETE_DELETION )
+    while( osEventFlagsWait( ctx->rx_EventFlags, SOCKETS_COMPLETE_DELETION, osFlagsWaitAll, osWaitForever )
+           != SOCKETS_COMPLETE_DELETION )
     {
         /* Continue waiting for the task to delete itself. */
     }
@@ -379,7 +321,7 @@ static void prvRxSelectClear( ss_ctx_t * ctx )
     ctx->rx_handle = NULL;
 
     /* Delete the event group. */
-    vEventGroupDelete( ctx->rx_EventGroup );
+    osEventFlagsDelete( ctx->rx_EventFlags );
 
     /* Remove the reference to the callback. */
     ctx->rx_callback = NULL;
@@ -412,7 +354,7 @@ Socket_t SOCKETS_Socket( int32_t lDomain,
     {
         memset( ctx, 0, sizeof( *ctx ) );
 
-        ctx->ip_socket = lwip_socket( lDomain, lType, lProtocol );
+        ctx->ip_socket = iotSocketCreate( IOT_SOCKET_AF_INET, IOT_SOCKET_SOCK_STREAM, IOT_SOCKET_IPPROTO_TCP );
 
         if( ctx->ip_socket >= 0 )
         {
@@ -435,7 +377,6 @@ int32_t SOCKETS_Bind( Socket_t xSocket,
 {
     ss_ctx_t * ctx;
     int32_t ret;
-    struct sockaddr_in sa_addr = { 0 };
 
     if( SOCKETS_INVALID_SOCKET == xSocket )
     {
@@ -463,28 +404,11 @@ int32_t SOCKETS_Bind( Socket_t xSocket,
         return SOCKETS_EINVAL;
     }
 
-    /*
-     * Setting SO_REUSEADDR socket option in order to be able to bind to the same ip:port again
-     * without netconn_bind failing.
-     */
-    #if SO_REUSE
-        ret = lwip_setsockopt( ctx->ip_socket, SOL_SOCKET, SO_REUSEADDR, &( uint32_t ) { 1 }, sizeof( uint32_t ) );
+    ret = iotSocketBind( ctx->ip_socket, ( uint8_t * ) &pxAddress->ulAddress, sizeof( pxAddress->ulAddress ), pxAddress->usPort );
 
-        if( 0 > ret )
-        {
-            return SOCKETS_SOCKET_ERROR;
-        }
-    #endif /* SO_REUSE */
-
-    sa_addr.sin_family = pxAddress->ucSocketDomain ? pxAddress->ucSocketDomain : AF_INET;
-    sa_addr.sin_addr.s_addr = pxAddress->ulAddress;
-    sa_addr.sin_port = pxAddress->usPort;
-
-    ret = lwip_bind( ctx->ip_socket, ( struct sockaddr * ) &sa_addr, sizeof( sa_addr ) );
-
-    if( 0 > ret )
+    if( 0 != ret )
     {
-        configPRINTF( ( "lwip_bind fail :%d\n", ret ) );
+        configPRINTF( ( "iotSocketBind fail :%d\n", ret ) );
         return SOCKETS_SOCKET_ERROR;
     }
 
@@ -523,15 +447,9 @@ int32_t SOCKETS_Connect( Socket_t xSocket,
     ctx = ( ss_ctx_t * ) xSocket;
     configASSERT( ctx->ip_socket >= 0 );
 
-    struct sockaddr_in sa_addr = { 0 };
     int ret;
-    sa_addr.sin_family = pxAddress->ucSocketDomain;
-    sa_addr.sin_addr.s_addr = pxAddress->ulAddress;
-    sa_addr.sin_port = pxAddress->usPort;
 
-    ret = lwip_connect( ctx->ip_socket,
-                        ( struct sockaddr * ) &sa_addr,
-                        sizeof( sa_addr ) );
+    ret = iotSocketConnect( ctx->ip_socket, ( uint8_t * ) &pxAddress->ulAddress, sizeof( pxAddress->ulAddress ), SOCKETS_ntohs(pxAddress->usPort) );
 
     if( 0 == ret )
     {
@@ -557,7 +475,7 @@ int32_t SOCKETS_Connect( Socket_t xSocket,
 
         status = TLS_Init( &ctx->tls_ctx, &tls_params );
 
-        if( pdFREERTOS_ERRNO_NONE != status )
+        if( osOK != status )
         {
             configPRINTF( ( "TLS_Init fail\n" ) );
             return SOCKETS_SOCKET_ERROR;
@@ -565,7 +483,7 @@ int32_t SOCKETS_Connect( Socket_t xSocket,
 
         status = TLS_Connect( ctx->tls_ctx );
 
-        if( pdFREERTOS_ERRNO_NONE == status )
+        if( osOK == status )
         {
             ctx->status |= SS_STATUS_SECURED;
             return SOCKETS_ERROR_NONE;
@@ -579,7 +497,7 @@ int32_t SOCKETS_Connect( Socket_t xSocket,
     }
     else
     {
-        configPRINTF( ( "LwIP connect fail %d %d\n", ret, errno ) );
+        configPRINTF( ( "iotSocketConnect fail %d\n", ret ) );
     }
 
     return SOCKETS_SOCKET_ERROR;
@@ -671,6 +589,7 @@ int32_t SOCKETS_Shutdown( Socket_t xSocket,
 {
     ss_ctx_t * ctx;
     int ret;
+    (void)ulHow;
 
     if( SOCKETS_INVALID_SOCKET == xSocket )
     {
@@ -680,9 +599,11 @@ int32_t SOCKETS_Shutdown( Socket_t xSocket,
     ctx = ( ss_ctx_t * ) xSocket;
 
     configASSERT( ctx->ip_socket >= 0 );
-    ret = lwip_shutdown( ctx->ip_socket, ( int ) ulHow );
+    /* API doesn't offer a shutdown call so we use close.
+     * Internally, shutdown of both write&read (which is what is called by existing code) is equivalent to close. */
+    iotSocketClose( ctx->ip_socket );
 
-    if( 0 > ret )
+    if( 0 != ret )
     {
         return SOCKETS_SOCKET_ERROR;
     }
@@ -704,7 +625,7 @@ int32_t SOCKETS_Close( Socket_t xSocket )
     ctx = ( ss_ctx_t * ) xSocket;
     ctx->state = SST_RX_CLOSING;
 
-    lwip_close( ctx->ip_socket );
+    iotSocketClose( ctx->ip_socket );
     prvDecrementRefCount( ctx );
 
     return SOCKETS_ERROR_NONE;
@@ -739,20 +660,17 @@ int32_t SOCKETS_SetSockOpt( Socket_t xSocket,
         case SOCKETS_SO_RCVTIMEO:
         case SOCKETS_SO_SNDTIMEO:
            {
-               TickType_t ticks;
-               struct timeval tv;
+               uint32_t ticks;
 
-               ticks = *( ( const TickType_t * ) pvOptionValue );
+               ticks = *( ( const uint32_t * ) pvOptionValue );
 
-               tv.tv_sec = TICK_TO_S( ticks );
-               tv.tv_usec = TICK_TO_US( ticks % configTICK_RATE_HZ );
+               uint32_t timeout = ( TICK_TO_US( ticks ) ) / 1000;
 
-               ret = lwip_setsockopt( ctx->ip_socket,
-                                      SOL_SOCKET,
+               ret = iotSocketSetOpt( ctx->ip_socket,
                                       lOptionName == SOCKETS_SO_RCVTIMEO ?
-                                      SO_RCVTIMEO : SO_SNDTIMEO,
-                                      ( struct timeval * ) &tv,
-                                      sizeof( tv ) );
+                                      IOT_SOCKET_SO_RCVTIMEO : IOT_SOCKET_SO_SNDTIMEO,
+                                      ( uint8_t * ) &timeout,
+                                      sizeof( timeout ) );
 
                if( 0 != ret )
                {
@@ -764,7 +682,7 @@ int32_t SOCKETS_SetSockOpt( Socket_t xSocket,
 
         case SOCKETS_SO_NONBLOCK:
            {
-               int opt;
+               uint32_t opt;
 
                if( ( ctx->status & SS_STATUS_CONNECTED ) != SS_STATUS_CONNECTED )
                {
@@ -773,7 +691,7 @@ int32_t SOCKETS_SetSockOpt( Socket_t xSocket,
 
                opt = 1;
 
-               ret = lwip_ioctl( ctx->ip_socket, FIONBIO, &opt );
+               ret = iotSocketSetOpt( ctx->ip_socket, IOT_SOCKET_IO_FIONBIO, ( uint8_t * ) &opt, sizeof( uint32_t ) );
 
                if( 0 != ret )
                {
@@ -915,46 +833,9 @@ int32_t SOCKETS_SetSockOpt( Socket_t xSocket,
 
         case SOCKETS_SO_TCPKEEPALIVE:
 
-            ret = lwip_setsockopt( ctx->ip_socket,
-                                   SOL_SOCKET,
-                                   SO_KEEPALIVE,
-                                   pvOptionValue,
-                                   sizeof( int ) );
+            ret = iotSocketSetOpt( ctx->ip_socket, IOT_SOCKET_SO_KEEPALIVE, pvOptionValue, sizeof( uint32_t ) );
 
             break;
-
-            #if LWIP_TCP_KEEPALIVE
-                case SOCKETS_SO_TCPKEEPALIVE_INTERVAL:
-
-                    ret = lwip_setsockopt( ctx->ip_socket,
-                                           IPPROTO_TCP,
-                                           TCP_KEEPINTVL,
-                                           pvOptionValue,
-                                           sizeof( int ) );
-
-                    break;
-
-                case SOCKETS_SO_TCPKEEPALIVE_COUNT:
-
-                    ret = lwip_setsockopt( ctx->ip_socket,
-                                           IPPROTO_TCP,
-                                           TCP_KEEPCNT,
-                                           pvOptionValue,
-                                           sizeof( int ) );
-
-                    break;
-
-                case SOCKETS_SO_TCPKEEPALIVE_IDLE_TIME:
-
-                    ret = lwip_setsockopt( ctx->ip_socket,
-                                           IPPROTO_TCP,
-                                           TCP_KEEPIDLE,
-                                           pvOptionValue,
-                                           sizeof( int ) );
-
-                    break;
-            #endif /* if LWIP_TCP_KEEPALIVE */
-
 
         default:
             return SOCKETS_ENOPROTOOPT;
@@ -970,80 +851,27 @@ int32_t SOCKETS_SetSockOpt( Socket_t xSocket,
 
 /*-----------------------------------------------------------*/
 
-/*
- * Lwip DNS Found callback, compatible with type "dns_found_callback"
- * declared in lwip/dns.h.
- *
- * NOTE: this resolves only ipv4 addresses; calls to dns_gethostbyname_addrtype()
- * must specify dns_addrtype == LWIP_DNS_ADDRTYPE_IPV4.
- */
-static void lwip_dns_found_callback( const char * name,
-                                     const ip_addr_t * ipaddr,
-                                     void * callback_arg )
-{
-    uint32_t * addr = ( uint32_t * ) callback_arg;
-
-    if( ipaddr != NULL )
-    {
-        *addr = *( ( uint32_t * ) ipaddr ); /* NOTE: IPv4 addresses only */
-    }
-    else
-    {
-        *addr = 0;
-    }
-}
-
-/*-----------------------------------------------------------*/
-
 uint32_t SOCKETS_GetHostByName( const char * pcHostName )
 {
-    uint32_t addr = 0; /* 0 indicates failure to caller */
-    err_t xLwipError = ERR_OK;
-    ip_addr_t xLwipIpv4Address;
-    uint32_t ulDnsResolutionWaitCycles = 0;
+    uint32_t ret;
+    uint32_t addr;
+    /* we only want IPV4 address */
+    uint32_t ip_len = sizeof( uint32_t );
 
-    if( strlen( pcHostName ) <= ( size_t ) securesocketsMAX_DNS_NAME_LENGTH )
-    {
-        xLwipError = dns_gethostbyname_addrtype( pcHostName, &xLwipIpv4Address,
-                                                 lwip_dns_found_callback, ( void * ) &addr,
-                                                 LWIP_DNS_ADDRTYPE_IPV4 );
-
-        switch( xLwipError )
-        {
-            case ERR_OK:
-                addr = *( ( uint32_t * ) &xLwipIpv4Address ); /* NOTE: IPv4 addresses only */
-                break;
-
-            case ERR_INPROGRESS:
-
-                /*
-                 * The DNS resolver is working the request.  Wait for it to complete
-                 * or time out; print a timeout error message if configured for debug
-                 * printing.
-                 */
-                do
-                {
-                    vTaskDelay( lwip_dns_resolver_LOOP_DELAY_TICKS );
-                }   while( ( ulDnsResolutionWaitCycles++ < lwip_dns_resolver_MAX_WAIT_CYCLES ) && addr == 0 );
-
-                if( addr == 0 )
-                {
-                    configPRINTF( ( "Unable to resolve (%s) within (%ul) seconds",
-                                    pcHostName, lwip_dns_resolver_MAX_WAIT_SECONDS ) );
-                }
-
-                break;
-
-            default:
-                configPRINTF( ( "Unexpected error (%lu) from dns_gethostbyname_addrtype() while resolving (%s)!",
-                                ( uint32_t ) xLwipError, pcHostName ) );
-                break;
-        }
+    if( strlen( pcHostName ) > ( size_t ) securesocketsMAX_DNS_NAME_LENGTH ) {
+         configPRINTF( ( "Host name (%s) too long!", pcHostName ) );
     }
-    else
+
+    ret = iotSocketGetHostByName( pcHostName, IOT_SOCKET_AF_INET, ( uint8_t * ) &addr, &ip_len );
+
+    if ( ret != 0 ) {
+        configPRINTF( ( "Error (%lu) from iotSocketGetHostByName() while resolving (%s)!", ret, pcHostName ) );
+        return 0;
+    }
+
+    if( addr == 0 )
     {
-        addr = 0;
-        configPRINTF( ( "Host name (%s) too long!", pcHostName ) );
+        configPRINTF( ( "Unable to resolve (%s)", pcHostName ) );
     }
 
     return addr;
@@ -1053,11 +881,8 @@ uint32_t SOCKETS_GetHostByName( const char * pcHostName )
 
 BaseType_t SOCKETS_Init( void )
 {
-    BaseType_t xResult = pdPASS;
-
-    dns_init();
-
-    return xResult;
+    /* nothing to be done, DNS is initialised as part of network init */
+    return true;
 }
 
 /*-----------------------------------------------------------*/

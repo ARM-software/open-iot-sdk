@@ -1,6 +1,7 @@
 /*
  * FreeRTOS Transport Secure Sockets V1.0.0
  * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -33,6 +34,8 @@
 
 /* TCP/IP abstraction includes. */
 #include "transport_secure_sockets.h"
+
+#include "cmsis_os2.h"
 
 /*-----------------------------------------------------------*/
 
@@ -349,42 +352,39 @@ static int32_t transportTimeoutSetup( Socket_t tcpSocket,
                                       uint32_t sendTimeoutMs,
                                       uint32_t recvTimeoutMs )
 {
-    TickType_t receiveTimeout = 0, sendTimeout = 0;
+    uint32_t receiveTimeout = 0, sendTimeout = 0;
     int32_t secureSocketStatus = ( int32_t ) SOCKETS_ERROR_NONE;
 
     configASSERT( tcpSocket != SOCKETS_INVALID_SOCKET );
 
-    /* Secure Sockets uses TickType_t therefore replace the timeout value with portMAX_DELAY if it is exceeded. */
+    /* Secure Sockets uses uint32_t therefore replace the timeout value with osWaitForever if it is exceeded. */
     receiveTimeout = pdMS_TO_TICKS( recvTimeoutMs );
 
-    if( receiveTimeout > portMAX_DELAY )
+    if( receiveTimeout > osWaitForever )
     {
-        receiveTimeout = portMAX_DELAY;
+        receiveTimeout = osWaitForever;
     }
 
     secureSocketStatus = SOCKETS_SetSockOpt( tcpSocket,
                                              0,
                                              SOCKETS_SO_RCVTIMEO,
                                              &receiveTimeout,
-                                             sizeof( TickType_t ) );
+                                             sizeof( uint32_t ) );
 
     if( secureSocketStatus == SOCKETS_ERROR_NONE )
     {
-        /* Secure Sockets uses TickType_t therefore replace timeout vale with portMAX_DELAY if it exceeds. */
-        if( pdMS_TO_TICKS( sendTimeoutMs ) > portMAX_DELAY )
+        /* Secure Sockets uses uint32_t therefore replace timeout vale with osWaitForever if it exceeds. */
+        sendTimeout = pdMS_TO_TICKS( sendTimeoutMs );
+        if( sendTimeout > osWaitForever )
         {
-            sendTimeout = portMAX_DELAY;
-        }
-        else
-        {
-            sendTimeout = pdMS_TO_TICKS( sendTimeoutMs );
+            sendTimeout = osWaitForever;
         }
 
         secureSocketStatus = SOCKETS_SetSockOpt( tcpSocket,
                                                  0,
                                                  SOCKETS_SO_SNDTIMEO,
                                                  &sendTimeout,
-                                                 sizeof( TickType_t ) );
+                                                 sizeof( uint32_t ) );
 
         if( secureSocketStatus != ( int32_t ) SOCKETS_ERROR_NONE )
         {

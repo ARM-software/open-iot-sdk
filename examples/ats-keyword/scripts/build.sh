@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#  Copyright (c) 2021 Arm Limited. All rights reserved.
+#  Copyright (c) 2021-2022 Arm Limited. All rights reserved.
 #  SPDX-License-Identifier: Apache-2.0
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,6 +24,9 @@ EXAMPLE=""
 CLEAN=0
 BUILD_PATH="$ROOT/build"
 CREDENTIALS_PATH="$ROOT/bsp/default_credentials"
+TARGET="Corstone-300"
+TARGET_PROCESSOR=""
+RTOS="FREERTOS"
 
 set -e
 
@@ -47,8 +50,8 @@ function build_with_cmake {
         set -ex
 
         # Note: A bug in CMake force us to set the toolchain here
-		cmake -G Ninja -S . -B $BUILD_PATH --toolchain=toolchains/toolchain-armclang.cmake -DCMAKE_SYSTEM_PROCESSOR=cortex-m55 -DAWS_CONFIG_CREDENTIALS_PATH=$CREDENTIALS_PATH
-		cmake --build $BUILD_PATH --target $EXAMPLE
+        cmake -G Ninja -S . -B $BUILD_PATH --toolchain=toolchains/toolchain-armclang.cmake -DCMAKE_SYSTEM_PROCESSOR=$TARGET_PROCESSOR -DAWS_CONFIG_CREDENTIALS_PATH=$CREDENTIALS_PATH -DTS_TARGET=$TARGET -DRTOS=$RTOS
+        cmake --build $BUILD_PATH --target $EXAMPLE
     )
 }
 
@@ -63,6 +66,8 @@ Options:
     -c,--clean       Clean build
     -p,--path        Build path
     -a,--credentials Credentials path
+    -t,--target      Build target (Corstone-300 or Corstone-310)
+    -r,--rtos        RTOS selection (FREERTOS | RTX)
 
 Examples:
     blinky
@@ -75,8 +80,8 @@ if [[ $# -eq 0 ]]; then
     exit 1
 fi
 
-SHORT=a:p:,c,h
-LONG=credentials:path:,clean,help
+SHORT=a:p:r:t:,c,h
+LONG=credentials:path:rtos:target:,clean,help
 OPTS=$(getopt -n build --options $SHORT --longoptions $LONG -- "$@")
 
 eval set -- "$OPTS"
@@ -98,6 +103,14 @@ do
       ;;
     -a | --credentials )
       CREDENTIALS_PATH=$ROOT/$2
+      shift 2
+      ;;
+    -t | --target )
+      TARGET=$2
+      shift 2
+      ;;
+    -r | --rtos )
+      RTOS=$2
       shift 2
       ;;
     --)
@@ -124,6 +137,20 @@ case "$1" in
         show_usage
         exit 2
         ;;
+esac
+
+case "$TARGET" in
+    Corstone-300 )
+      TARGET_PROCESSOR="cortex-m55"
+      ;;
+    Corstone-310 )
+      TARGET_PROCESSOR="cortex-m85"
+      ;;
+    *)
+      echo "Invalid target <Corstone-300|Corstone-310>"
+      show_usage
+      exit 2
+      ;;
 esac
 
 build_with_cmake

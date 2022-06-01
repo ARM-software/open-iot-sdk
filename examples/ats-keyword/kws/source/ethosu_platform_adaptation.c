@@ -1,22 +1,8 @@
-/*
- * Copyright (c) 2021 Arm Limited
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/* Copyright (c) 2021-2022, Arm Limited and Contributors. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "queue.h"
-#include "semphr.h"
-#include "task.h"
+#include "cmsis_os2.h"
 
 /****************************************************************************
  * Mutex & Semaphore
@@ -25,34 +11,46 @@
 
 void *ethosu_mutex_create(void)
 {
-    return xSemaphoreCreateMutex();
+    return osMutexNew(NULL);
 }
 
 void ethosu_mutex_lock(void *mutex)
 {
-    SemaphoreHandle_t handle = (SemaphoreHandle_t)mutex;
-    xSemaphoreTake(handle, portMAX_DELAY);
+    osMutexId_t mutex_id = (osMutexId_t)mutex;
+    osStatus_t status = osMutexAcquire(mutex_id, osWaitForever);
+    if (status != osOK) {
+        printf("osMutexAcquire failed %d\r\n", status);
+    }
 }
 
 void ethosu_mutex_unlock(void *mutex)
 {
-    SemaphoreHandle_t handle = (SemaphoreHandle_t)mutex;
-    xSemaphoreGive(handle);
+    osMutexId_t mutex_id = (osMutexId_t)mutex;
+    osStatus_t status = osMutexRelease(mutex_id);
+    if (status != osOK) {
+        printf("osMutexRelease failed %d\r\n", status);
+    }
 }
 
 void *ethosu_semaphore_create(void)
 {
-    return xSemaphoreCreateBinary();
+    return osSemaphoreNew(1U, 1U, NULL);
 }
 
 void ethosu_semaphore_take(void *sem)
 {
-    SemaphoreHandle_t handle = (SemaphoreHandle_t)sem;
-    xSemaphoreTake(handle, portMAX_DELAY);
+    osSemaphoreId_t sem_id = (osSemaphoreId_t)sem;
+    osStatus_t status = osSemaphoreAcquire(sem_id, osWaitForever);
+    if (status != osOK) {
+        printf("osSemaphoreAcquire failed %d\r\n", status);
+    }
 }
 
 void ethosu_semaphore_give(void *sem)
 {
-    SemaphoreHandle_t handle = (SemaphoreHandle_t)sem;
-    xSemaphoreGive(handle);
+    osSemaphoreId_t sem_id = (osSemaphoreId_t)sem;
+    osStatus_t status = osSemaphoreRelease(sem_id);
+    if (status != osOK) {
+        printf("osSemaphoreRelease failed %d\r\n", status);
+    }
 }

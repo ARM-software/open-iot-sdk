@@ -1,6 +1,7 @@
 /*
  * FreeRTOS V202107.00
  * Copyright (C) 2021 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -26,6 +27,7 @@
 #ifndef IOT_SECURE_SOCKETS_CONFIG_H
 #define IOT_SECURE_SOCKETS_CONFIG_H
 
+#include "RTOS_config.h"
 
 /**
  * @brief Byte order of the target MCU.

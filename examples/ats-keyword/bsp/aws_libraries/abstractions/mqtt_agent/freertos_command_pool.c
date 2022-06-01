@@ -1,6 +1,7 @@
 /*
  * FreeRTOS V202104.00
  * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -33,9 +34,8 @@
 #include <string.h>
 #include <stdio.h>
 
-/* Kernel includes. */
-#include "FreeRTOS.h"
-#include "semphr.h"
+/* CMSIS includes. */
+#include "cmsis_os2.h"
 
 /* Header include. */
 #include "freertos_command_pool.h"
@@ -55,9 +55,8 @@ static MQTTAgentCommand_t commandStructurePool[ MQTT_COMMAND_CONTEXTS_POOL_SIZE 
 
 /**
  * @brief The message context used to guard the pool of MQTTAgentCommand_t structures.
- * For FreeRTOS, this is implemented with a queue. Structures may be
- * obtained by receiving a pointer from the queue, and returned by
- * sending the pointer back into it.
+ * This is implemented with a queue. Structures may be obtained by receiving a 
+ * pointer from the queue, and returned by sending the pointer back into it.
  */
 static MQTTAgentMessageContext_t commandStructMessageCtx;
 
@@ -72,18 +71,15 @@ void Agent_InitializePool( void )
 {
     size_t i;
     MQTTAgentCommand_t * pCommand;
-    static uint8_t staticQueueStorageArea[ MQTT_COMMAND_CONTEXTS_POOL_SIZE * sizeof( MQTTAgentCommand_t * ) ];
-    static StaticQueue_t staticQueueStructure;
     bool commandAdded = false;
 
     if( initStatus == QUEUE_NOT_INITIALIZED )
     {
         memset( ( void * ) commandStructurePool, 0x00, sizeof( commandStructurePool ) );
-        commandStructMessageCtx.queue = xQueueCreateStatic( MQTT_COMMAND_CONTEXTS_POOL_SIZE,
+        commandStructMessageCtx.queue =  osMessageQueueNew( MQTT_COMMAND_CONTEXTS_POOL_SIZE,
                                                             sizeof( MQTTAgentCommand_t * ),
-                                                            staticQueueStorageArea,
-                                                            &staticQueueStructure );
-        configASSERT( commandStructMessageCtx.queue );
+                                                            NULL);
+        configASSERT( (uint32_t) commandStructMessageCtx.queue );
 
         /* Populate the queue. */
         for( i = 0; i < MQTT_COMMAND_CONTEXTS_POOL_SIZE; i++ )

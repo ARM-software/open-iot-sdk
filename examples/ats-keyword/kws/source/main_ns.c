@@ -1,48 +1,29 @@
-/*
- * Copyright (c) 2017-2021 Arm Limited
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/* Copyright (c) 2017-2022, Arm Limited and Contributors. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "stdio.h"
-#include "string.h"
-#include "cmsis.h"
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include "cmsis_os2.h"
 #include "bsp_serial.h"
-#include "print_log.h"
 
 #include "blink_task.h"
 #include "ml_interface.h"
-#include "lwip_stack.h"
-#include "lwip/timeouts.h"
 
-#include "FreeRTOS.h"
-#include "task.h"
-#include "FreeRTOS_IP.h"
+#include "iotsdk/ip_network_api.h"
 
 /* includes for TFM */
-#include "tfm_ns_interface.h"
-#include "psa/protected_storage.h"
-#include "psa/crypto.h"
+#include "psa/update.h"
 
 /* includes for IoT Cloud */
-#include "iot_mqtt.h"
-#include "iot_secure_sockets.h"
-#include "iot_network_freertos.h"
 #include "iot_logging_task.h"
 #include "aws_dev_mode_key_provisioning.h"
 #include "ota_provision.h"
-#include "psa/update.h"
 #include "version/application_version.h"
+
+#define IOT_LOGGING_QUEUE_SIZE 90
 
 extern int mbedtls_platform_set_calloc_free(void *(*calloc_func)(size_t, size_t), void (*free_func)(void *));
 static void *prvCalloc(size_t xNmemb, size_t xSize);
@@ -66,95 +47,128 @@ __asm("  .global __ARM_use_no_argv\n");
 
 extern uint32_t tfm_ns_interface_init(void);
 
-#define FREERTOS_HIGHEST_TASK_PRIORITY (configMAX_PRIORITIES - 1)
-
-uint8_t ucHeap[configTOTAL_HEAP_SIZE];
-
-/**
- * Network information
- */
-/* The MAC address array is not declared const as the MAC address will
-normally be read from an EEPROM and not hard coded (in real deployed
-applications).*/
-static uint8_t ucMACAddress[6] = {0x00, 0x02, 0xF7, 0x00, 0x74, 0x15}; // mac of my MPS3 eth
-/* Define the network addressing.  These parameters will be used if either
-ipconfigUDE_DHCP is 0 or if ipconfigUSE_DHCP is 1 but DHCP auto configuration
-failed. */
-static uint8_t ucIPAddress[4] = {192, 168, 1, 215};
-static uint8_t ucNetMask[4] = {255, 0, 0, 0};
-static uint8_t ucGatewayAddress[4] = {10, 10, 10, 1};
-/* The following is the address of an OpenDNS server. */
-static uint8_t ucDNSServerAddress[4] = {208, 67, 222, 222};
-
 psa_key_handle_t xOTACodeVerifyKeyHandle = NULL;
 
-void print_version()
+void network_state_callback(network_state_callback_event_t status)
 {
-    if (GetImageVersionPSA(FWU_IMAGE_TYPE_NONSECURE) == 0) {
-        print_log("Firmware version: %d.%d.%d",
-                  xAppFirmwareVersion.u.x.major,
-                  xAppFirmwareVersion.u.x.minor,
-                  xAppFirmwareVersion.u.x.build);
-    }
-}
-
-int main()
-{
-    BaseType_t ret = pdPASS;
-
-    tfm_ns_interface_init();
-
-    vUARTLockInit();
-
-    bsp_serial_init();
-
-    xTaskCreate(ml_task, "ML task", configMINIMAL_STACK_SIZE * 4, NULL, tskIDLE_PRIORITY + 1, NULL);
-    xTaskCreate(blink_task, "blink task", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY, NULL);
-    xTaskCreate(net_task, "net task", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY, NULL);
-    xTaskCreate(ml_mqtt_task, "ml-mqtt task", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY, NULL);
-
-    xLoggingTaskInitialize(configMINIMAL_STACK_SIZE, tskIDLE_PRIORITY + 2, 90);
-
-    // FIXME: put static bool variable guard here so this only runs once ?
-    mbedtls_platform_set_calloc_free(prvCalloc, vPortFree);
-    vDevModeKeyProvisioning();
-
-    ret = ota_privision_code_signing_key(&xOTACodeVerifyKeyHandle);
-    configASSERT(ret == 0);
-
-    print_version();
-
-    print_log("starting scheduler from ns main\r\n");
-    /* Start the scheduler itself. */
-    vTaskStartScheduler();
-
-    print_log("End of main. Halting!\r\n");
-    while (1) {
-    }
-}
-
-void vApplicationIPNetworkEventHook(eIPCallbackEvent_t eNetworkEvent)
-{
-    if (eNetworkEvent == eNetworkUp) {
-        print_log("[INF] network up, starting demo\r\n");
+    if (status == NETWORK_UP) {
+        printf("[INF] network up, starting demo\r\n");
 
         if (strcmp(clientcredentialMQTT_BROKER_ENDPOINT, "endpointid.amazonaws.com") == 0) {
-            print_log("[ERR] INVALID CREDENTIALS AND ENDPOINT.\r\n");
-            print_log("[ERR] Set the right configuration and credentials in aws_clientcredential.h and "
-                      "aws_clientcredential_keys.h\r\n");
+            printf("[ERR] INVALID CREDENTIALS AND ENDPOINT.\r\n");
+            printf("[ERR] Set the right configuration and credentials in aws_clientcredential.h and "
+                   "aws_clientcredential_keys.h\r\n");
             // Start the inference directly
             ml_task_inference_start();
         } else {
             DEMO_RUNNER_RunDemos();
         }
     } else {
-        print_log("[ERR] network down\r\n");
+        printf("[ERR] network down\r\n");
     }
 }
 
-/**
- * @brief Implements libc calloc semantics using the FreeRTOS heap
- */
+void print_version()
+{
+    if (GetImageVersionPSA(FWU_IMAGE_TYPE_NONSECURE) == 0) {
+        printf("Firmware version: %d.%d.%d\r\n",
+               xAppFirmwareVersion.u.x.major,
+               xAppFirmwareVersion.u.x.minor,
+               xAppFirmwareVersion.u.x.build);
+    }
+}
+
+extern void vUARTLockInit(void);
+
+void main_task(void *arg)
+{
+    tfm_ns_interface_init();
+
+    vUARTLockInit();
+
+    static const osThreadAttr_t ml_task_attr = {.priority = osPriorityNormal1, .stack_size = 8192};
+    osThreadId_t ml_thread = osThreadNew(ml_task, NULL, &ml_task_attr);
+    if (!ml_thread) {
+        printf("Failed to create ml thread\r\n");
+        return;
+    }
+
+    static const osThreadAttr_t blink_attr = {.priority = osPriorityHigh};
+    osThreadId_t blink_thread = osThreadNew(blink_task, NULL, &blink_attr);
+    if (!blink_thread) {
+        printf("Failed to create blink thread\r\n");
+        return;
+    }
+
+    osThreadId_t ml_mqtt_thread = osThreadNew(ml_mqtt_task, NULL, NULL);
+    if (!ml_mqtt_thread) {
+        printf("Failed to create ml mqtt thread\r\n");
+        return;
+    }
+
+    BaseType_t log_initialized = xLoggingTaskInitialize(0, osPriorityNormal2, IOT_LOGGING_QUEUE_SIZE);
+    if (log_initialized != pdTRUE) {
+        printf("Failed to initialize logging task [%ld]\r\n", log_initialized);
+        return;
+    }
+
+    mbedtls_platform_set_calloc_free(prvCalloc, free);
+    CK_RV provisionning_status = vDevModeKeyProvisioning();
+
+    if (provisionning_status == osOK) {
+        BaseType_t ret = ota_privision_code_signing_key(&xOTACodeVerifyKeyHandle);
+        if (ret != PSA_SUCCESS) {
+            printf("ota_privision_code_signing_key failed [%d]\r\n", ret);
+        }
+    }
+
+    print_version();
+
+    osStatus_t status = start_network_task(network_state_callback, 0);
+    if (status != osOK) {
+        printf("Failed to start network task [%d]\r\n", status);
+    }
+
+    while (1) {
+        osDelay(osWaitForever);
+    };
+    return;
+}
+
+int main()
+{
+    bsp_serial_init();
+
+    osStatus_t os_status = osKernelInitialize();
+    if (os_status != osOK) {
+        printf("osKernelInitialize failed: %d\r\n", os_status);
+        return EXIT_FAILURE;
+    }
+
+    osThreadId_t connectivity_thread = osThreadNew(main_task, NULL, NULL);
+    if (!connectivity_thread) {
+        printf("Failed to create connectivity thread\r\n");
+        return EXIT_FAILURE;
+    }
+
+    osKernelState_t os_state = osKernelGetState();
+    if (os_state != osKernelReady) {
+        printf("Kernel not ready %d\r\n", os_state);
+        return EXIT_FAILURE;
+    }
+
+    printf("Starting scheduler from ns main\r\n");
+
+    /* Start the scheduler itself. */
+    os_status = osKernelStart();
+    if (os_status != osOK) {
+        printf("Failed to start kernel: %d\r\n", os_status);
+        return EXIT_FAILURE;
+    }
+
+    return 0;
+}
+
 static void *prvCalloc(size_t xNmemb, size_t xSize)
 {
     void *pvNew = pvPortMalloc(xNmemb * xSize);

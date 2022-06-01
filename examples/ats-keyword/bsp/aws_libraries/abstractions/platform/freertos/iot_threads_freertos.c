@@ -1,6 +1,7 @@
 /*
  * FreeRTOS Platform V1.1.2
  * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -30,8 +31,7 @@
 
 /* The config header is always included first. */
 #include "iot_config.h"
-
-#include "semphr.h"
+#include "cmsis_os2.h"
 
 /* Platform threads include. */
 #include "platform/iot_platform_types_freertos.h"
@@ -57,7 +57,7 @@
  * the usage of dynamic memory allocation.
  */
 #ifndef IotThreads_Malloc
-    #include "FreeRTOS.h"
+    #include "RTOS_config.h"
 
 /**
  * @brief Memory allocation. This function should have the same signature
@@ -66,7 +66,7 @@
     #define IotThreads_Malloc    pvPortMalloc
 #endif
 #ifndef IotThreads_Free
-    #include "FreeRTOS.h"
+    #include "RTOS_config.h"
 
 /**
  * @brief Free memory. This function should have the same signature as
@@ -85,7 +85,7 @@ static void _threadRoutineWrapper( void * pArgument )
     pThreadInfo->threadRoutine( pThreadInfo->pArgument );
     IotThreads_Free( pThreadInfo );
 
-    vTaskDelete( NULL );
+    osThreadExit();
 }
 
 /*-----------------------------------------------------------*/
@@ -96,6 +96,7 @@ bool Iot_CreateDetachedThread( IotThreadRoutine_t threadRoutine,
                                size_t stackSize )
 {
     bool status = true;
+    osMemoryPoolId_t threadMemPoolId;
 
     configASSERT( threadRoutine != NULL );
 
@@ -108,24 +109,30 @@ bool Iot_CreateDetachedThread( IotThreadRoutine_t threadRoutine,
         status = false;
     }
 
-    /* Create the FreeRTOS task that will run the thread. */
+    /* Create the CMSIS task that will run the thread. */
     if( status )
     {
         pThreadInfo->threadRoutine = threadRoutine;
         pThreadInfo->pArgument = pArgument;
 
-        if( xTaskCreate( _threadRoutineWrapper,
-                         "iot_thread",
-                         ( configSTACK_DEPTH_TYPE ) stackSize,
-                         pThreadInfo,
-                         priority,
-                         NULL ) != pdPASS )
+        const osThreadAttr_t thread_attr = {
+            .name = "iot_thread", 
+            .attr_bits = osThreadDetached, 
+            .stack_size = (configSTACK_DEPTH_TYPE)stackSize, 
+            .priority = priority, 
+        };
+
+        osThreadId_t id = osThreadNew( _threadRoutineWrapper, pThreadInfo, &thread_attr );
+
+        if(id == NULL)
         {
             /* Task creation failed. */
             IotLogWarn( "Failed to create thread." );
             IotThreads_Free( pThreadInfo );
             status = false;
         }
+
+        pThreadInfo->threadId = id;
     }
 
     return status;
@@ -141,27 +148,28 @@ bool IotMutex_Create( IotMutex_t * pNewMutex,
     configASSERT( internalMutex != NULL );
 
     IotLogDebug( "Creating new mutex %p.", pNewMutex );
+    uint32_t mutexType;
+    osMutexId_t mutex_id;
 
     if( recursive )
     {
-        ( void ) xSemaphoreCreateRecursiveMutexStatic( &internalMutex->xMutex );
+        mutexType = osMutexRecursive | osMutexPrioInherit;
     }
     else
     {
-        ( void ) xSemaphoreCreateMutexStatic( &internalMutex->xMutex );
+        mutexType = osMutexPrioInherit;
     }
 
-    /* remember the type of mutex */
-    if( recursive )
+    osMutexAttr_t mutexAttr = {"mutex", mutexType, NULL, 0};
+
+    mutex_id = osMutexNew(&mutexAttr);
+    if( mutex_id != NULL )
     {
-        internalMutex->recursive = pdTRUE;
-    }
-    else
-    {
-        internalMutex->recursive = pdFALSE;
+        *pNewMutex = mutex_id;
+        return true;
     }
 
-    return true;
+    return false;
 }
 
 /*-----------------------------------------------------------*/
@@ -172,7 +180,7 @@ void IotMutex_Destroy( IotMutex_t * pMutex )
 
     configASSERT( internalMutex != NULL );
 
-    vSemaphoreDelete( ( SemaphoreHandle_t ) &internalMutex->xMutex );
+    osMutexDelete( * pMutex );
 }
 
 /*-----------------------------------------------------------*/
@@ -181,30 +189,22 @@ bool prIotMutexTimedLock( IotMutex_t * pMutex,
                           TickType_t timeout )
 {
     _IotSystemMutex_t * internalMutex = ( _IotSystemMutex_t * ) pMutex;
-    BaseType_t lockResult;
+    osStatus_t lockResult;
 
     configASSERT( internalMutex != NULL );
 
     IotLogDebug( "Locking mutex %p.", internalMutex );
 
-    /* Call the correct FreeRTOS mutex take function based on mutex type. */
-    if( internalMutex->recursive == pdTRUE )
-    {
-        lockResult = xSemaphoreTakeRecursive( ( SemaphoreHandle_t ) &internalMutex->xMutex, timeout );
-    }
-    else
-    {
-        lockResult = xSemaphoreTake( ( SemaphoreHandle_t ) &internalMutex->xMutex, timeout );
-    }
+    lockResult = osMutexAcquire( * pMutex, timeout );
 
-    return( lockResult == pdTRUE );
+    return ( lockResult == osOK );
 }
 
 /*-----------------------------------------------------------*/
 
 void IotMutex_Lock( IotMutex_t * pMutex )
 {
-    prIotMutexTimedLock( pMutex, portMAX_DELAY );
+    prIotMutexTimedLock( pMutex, osWaitForever );
 }
 
 /*-----------------------------------------------------------*/
@@ -224,32 +224,32 @@ void IotMutex_Unlock( IotMutex_t * pMutex )
 
     IotLogDebug( "Unlocking mutex %p.", internalMutex );
 
-    /* Call the correct FreeRTOS mutex unlock function based on mutex type. */
-    if( internalMutex->recursive == pdTRUE )
-    {
-        ( void ) xSemaphoreGiveRecursive( ( SemaphoreHandle_t ) &internalMutex->xMutex );
-    }
-    else
-    {
-        ( void ) xSemaphoreGive( ( SemaphoreHandle_t ) &internalMutex->xMutex );
+    osStatus_t lockResult = osMutexRelease( * pMutex );
+    if ( lockResult != osOK ) {
+        IotLogError( "Failed to unlock mutex %p.", internalMutex );
     }
 }
 
 /*-----------------------------------------------------------*/
 
-bool IotSemaphore_Create( IotSemaphore_t * pNewSemaphore,
-                          uint32_t initialValue,
-                          uint32_t maxValue )
+bool IotSemaphore_Create( IotSemaphore_t *pNewSemaphore, uint32_t initialValue, uint32_t maxValue )
 {
     _IotSystemSemaphore_t * internalSemaphore = ( _IotSystemSemaphore_t * ) pNewSemaphore;
 
     configASSERT( internalSemaphore != NULL );
 
+    osSemaphoreId_t id;
+
     IotLogDebug( "Creating new semaphore %p.", pNewSemaphore );
 
-    ( void ) xSemaphoreCreateCountingStatic( maxValue, initialValue, &internalSemaphore->xSemaphore );
+    id = osSemaphoreNew( maxValue, initialValue, NULL );
 
-    return true;
+    if( id != NULL )
+    {
+        *pNewSemaphore = id;
+        return true;
+    }
+    return false;
 }
 
 /*-----------------------------------------------------------*/
@@ -257,15 +257,15 @@ bool IotSemaphore_Create( IotSemaphore_t * pNewSemaphore,
 uint32_t IotSemaphore_GetCount( IotSemaphore_t * pSemaphore )
 {
     _IotSystemSemaphore_t * internalSemaphore = ( _IotSystemSemaphore_t * ) pSemaphore;
-    UBaseType_t count = 0;
+    uint32_t count = 0;
 
     configASSERT( internalSemaphore != NULL );
 
-    count = uxSemaphoreGetCount( ( SemaphoreHandle_t ) &internalSemaphore->xSemaphore );
+    count = osSemaphoreGetCount( * internalSemaphore );
 
     IotLogDebug( "Semaphore %p has count %d.", pSemaphore, count );
 
-    return ( uint32_t ) count;
+    return count;
 }
 
 /*-----------------------------------------------------------*/
@@ -278,7 +278,7 @@ void IotSemaphore_Destroy( IotSemaphore_t * pSemaphore )
 
     IotLogDebug( "Destroying semaphore %p.", internalSemaphore );
 
-    vSemaphoreDelete( ( SemaphoreHandle_t ) &internalSemaphore->xSemaphore );
+    osSemaphoreDelete( internalSemaphore );
 }
 
 /*-----------------------------------------------------------*/
@@ -292,11 +292,8 @@ void IotSemaphore_Wait( IotSemaphore_t * pSemaphore )
     IotLogDebug( "Waiting on semaphore %p.", internalSemaphore );
 
     /* Take the semaphore using the FreeRTOS API. */
-    if( xSemaphoreTake( ( SemaphoreHandle_t ) &internalSemaphore->xSemaphore,
-                        portMAX_DELAY ) != pdTRUE )
-    {
-        IotLogWarn( "Failed to wait on semaphore %p.",
-                    pSemaphore );
+    if ( osSemaphoreAcquire( *internalSemaphore, osWaitForever ) != osOK ) {
+        IotLogWarn( "Failed to wait on semaphore %p.", pSemaphore );
 
         /* Assert here, debugging we always want to know that this happened because you think
          *   that you are waiting successfully on the semaphore but you are not   */
@@ -326,15 +323,11 @@ bool IotSemaphore_TimedWait( IotSemaphore_t * pSemaphore,
 
     configASSERT( internalSemaphore != NULL );
 
-    /* Take the semaphore using the FreeRTOS API. Cast the calculation to 64 bit to avoid overflows*/
-    if( xSemaphoreTake( ( SemaphoreHandle_t ) &internalSemaphore->xSemaphore,
-                        pdMS_TO_TICKS( timeoutMs ) ) != pdTRUE )
-    {
+    /* Take the semaphore using the CMSIS RTOS API. */
+    if ( osSemaphoreAcquire( * internalSemaphore, timeoutMs) != osOK ) {
         /* Only warn if timeout > 0 */
-        if( timeoutMs > 0 )
-        {
-            IotLogWarn( "Timeout waiting on semaphore %p.",
-                        internalSemaphore );
+        if ( timeoutMs > 0 ) {
+            IotLogWarn( "Timeout waiting on semaphore %p.", internalSemaphore );
         }
 
         return false;
@@ -352,12 +345,13 @@ void IotSemaphore_Post( IotSemaphore_t * pSemaphore )
     configASSERT( internalSemaphore != NULL );
 
     IotLogDebug( "Posting to semaphore %p.", internalSemaphore );
-    /* Give the semaphore using the FreeRTOS API. */
-    BaseType_t result = xSemaphoreGive( ( SemaphoreHandle_t ) &internalSemaphore->xSemaphore );
+    /* Give the semaphore using the CMSIS RTOS API. */
+    osStatus_t result = osSemaphoreRelease( * internalSemaphore );
 
-    if( result == pdFALSE )
-    {
+    if ( result == osErrorResource ) {
         IotLogDebug( "Unable to give semaphore over maximum", internalSemaphore );
+    } else if ( result == osErrorParameter ) {
+        IotLogDebug( "Semaphore is NULL of invalid", internalSemaphore );
     }
 }
 

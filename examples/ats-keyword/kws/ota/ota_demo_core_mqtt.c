@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -30,12 +31,8 @@
 #include <stdbool.h>
 #include <errno.h>
 
+#include "cmsis_os2.h"
 #include "aws_demo_config.h"
-
-#include "FreeRTOS.h"
-#include "task.h"
-#include "semphr.h"
-
 #include "iot_network.h"
 
 /* CoreMQTT-Agent APIS for running MQTT in a multithreaded environment. */
@@ -80,7 +77,7 @@
 #include "ota_demo_config.h"
 
 /* OTA Library Interface include. */
-#include "ota_os_freertos.h"
+#include "ota_os_cmsisrtos.h"
 #include "ota_mqtt_interface.h"
 
 /* PAL abstraction layer APIs. */
@@ -90,7 +87,6 @@
 #include "ota_appversion32.h"
 
 #include "ml_interface.h"
-#include "semphr.h"
 
 /*------------- Demo configurations -------------------------*/
 
@@ -255,7 +251,7 @@
 /**
  * @brief Priority required for OTA agent task.
  */
-#define otaexampleAGENT_TASK_PRIORITY               ( tskIDLE_PRIORITY | portPRIVILEGE_BIT )
+#define otaexampleAGENT_TASK_PRIORITY               ( osPriorityNormal )
 
 /**
  * @brief The number of ticks to wait for the OTA Agent to complete the shutdown.
@@ -326,7 +322,7 @@
 /**
  * @brief Priority required for OTA statistics task.
  */
-#define MQTT_AGENT_TASK_PRIORITY                    ( tskIDLE_PRIORITY | portPRIVILEGE_BIT )
+#define MQTT_AGENT_TASK_PRIORITY                    ( osPriorityNormal )
 
 /**
  * @brief The maximum amount of time in milliseconds to wait for the commands
@@ -374,6 +370,10 @@
  */
 #define MILLISECONDS_PER_TICK                       ( MILLISECONDS_PER_SECOND / configTICK_RATE_HZ )
 
+#define THREAD_NOTIFICATION_FLAG 1
+
+#define MsToSysTick(ms) (((uint64_t)ms * osKernelGetTickFreq()) / 1000)
+
 /**
  * @brief Each compilation unit that consumes the NetworkContext must define it.
  * It should contain a single pointer to the type of your desired transport.
@@ -404,8 +404,7 @@ typedef struct OtaTopicFilterCallback
 struct MQTTAgentCommandContext
 {
     MQTTStatus_t xReturnStatus;
-    TaskHandle_t xTaskToNotify;
-    uint32_t ulNotificationValue;
+    osThreadId_t xTaskToNotify;
     void * pArgs;
 };
 
@@ -456,7 +455,7 @@ static NetworkContext_t xNetworkContextMqtt;
 /**
  * @brief Semaphore for synchronizing buffer operations.
  */
-static SemaphoreHandle_t xBufferSemaphore;
+static osMutexId_t xBufferSemaphore;
 
 /**
  * @brief Update File path buffer.
@@ -793,14 +792,14 @@ static void prvMqttDataCallback( void * pContext,
 static void prvMqttDefaultCallback( void * pvIncomingPublishCallbackContext,
                                     MQTTPublishInfo_t * pxPublishInfo );
 
-static SemaphoreHandle_t mqtt_mutex = NULL;
+static osMutexId_t mqtt_mutex = NULL;
 
 static bool mqtt_lock()
 {
     bool success = false;
     if ( mqtt_mutex )
     {
-        if (xSemaphoreTake( mqtt_mutex, portMAX_DELAY ) == pdTRUE )
+        if (osMutexAcquire( mqtt_mutex, osWaitForever ) == osOK )
         {
             success = true;
         }
@@ -817,7 +816,7 @@ static bool mqtt_unlock()
     bool success = false;
     if ( mqtt_mutex )
     {
-        if (xSemaphoreGive( mqtt_mutex ) == pdTRUE )
+        if (osMutexRelease( mqtt_mutex ) == osOK )
         {
             success = true;
         }
@@ -882,10 +881,10 @@ static OtaTopicFilterCallback_t xOtaTopicFilterCallbacks[] =
 
 static void prvOtaEventBufferFree( OtaEventData_t * const pxBuffer )
 {
-    if( xSemaphoreTake( xBufferSemaphore, portMAX_DELAY ) == pdTRUE )
+    if( osMutexAcquire( xBufferSemaphore, osWaitForever ) == osOK )
     {
         pxBuffer->bufferUsed = false;
-        ( void ) xSemaphoreGive( xBufferSemaphore );
+        ( void ) osMutexRelease( xBufferSemaphore );
     }
     else
     {
@@ -900,7 +899,7 @@ static OtaEventData_t * prvOtaEventBufferGet( void )
     uint32_t ulIndex = 0;
     OtaEventData_t * pxFreeBuffer = NULL;
 
-    if( xSemaphoreTake( xBufferSemaphore, portMAX_DELAY ) == pdTRUE )
+    if( osMutexAcquire( xBufferSemaphore, osWaitForever ) == osOK )
     {
         for( ulIndex = 0; ulIndex < otaconfigMAX_NUM_OTA_DATA_BUFFERS; ulIndex++ )
         {
@@ -912,7 +911,7 @@ static OtaEventData_t * prvOtaEventBufferGet( void )
             }
         }
 
-        ( void ) xSemaphoreGive( xBufferSemaphore );
+        ( void ) osMutexRelease( xBufferSemaphore );
     }
     else
     {
@@ -1153,12 +1152,7 @@ static void prvMQTTAgentCmdCompleteCallback( MQTTAgentCommandContext_t * pxComma
 
     if( pxCommandContext->xTaskToNotify != NULL )
     {
-        /* Send the context's ulNotificationValue as the notification value so
-         * the receiving task can check the value it set in the context matches
-         * the value it receives in the notification. */
-        xTaskNotify( pxCommandContext->xTaskToNotify,
-                     pxCommandContext->ulNotificationValue,
-                     eSetValueWithOverwrite );
+        osThreadFlagsSet( pxCommandContext->xTaskToNotify, THREAD_NOTIFICATION_FLAG );
     }
 }
 /*-----------------------------------------------------------*/
@@ -1221,12 +1215,7 @@ static void prvMQTTSubscribeCompleteCallback( MQTTAgentCommandContext_t * pxComm
 
     if( pxCommandContext->xTaskToNotify != NULL )
     {
-        /* Send the context's ulNotificationValue as the notification value so
-         * the receiving task can check the value it set in the context matches
-         * the value it receives in the notification. */
-        xTaskNotify( pxCommandContext->xTaskToNotify,
-                     pxCommandContext->ulNotificationValue,
-                     eSetValueWithOverwrite );
+        osThreadFlagsSet( pxCommandContext->xTaskToNotify, THREAD_NOTIFICATION_FLAG );
     }
 }
 /*-----------------------------------------------------------*/
@@ -1257,12 +1246,7 @@ static void prvMQTTUnsubscribeCompleteCallback( MQTTAgentCommandContext_t * pxCo
 
     if( pxCommandContext->xTaskToNotify != NULL )
     {
-        /* Send the context's ulNotificationValue as the notification value so
-         * the receiving task can check the value it set in the context matches
-         * the value it receives in the notification. */
-        xTaskNotify( pxCommandContext->xTaskToNotify,
-                     pxCommandContext->ulNotificationValue,
-                     eSetValueWithOverwrite );
+        osThreadFlagsSet( pxCommandContext->xTaskToNotify, THREAD_NOTIFICATION_FLAG );
     }
 }
 /*-----------------------------------------------------------*/
@@ -1286,7 +1270,7 @@ static BaseType_t prvBackoffForRetry( BackoffAlgorithmContext_t * pxRetryParams 
     uint32_t ulRandomNum = 0;
 
     if( xPkcs11GenerateRandomNumber( ( uint8_t * ) &ulRandomNum,
-                                     sizeof( ulRandomNum ) ) == pdPASS )
+                                     sizeof( ulRandomNum ) ) == osOK )
     {
         /* Get back-off value (in milliseconds) for the next retry attempt. */
         xBackoffAlgStatus = BackoffAlgorithm_GetNextBackoff( pxRetryParams, ulRandomNum, &usNextRetryBackOff );
@@ -1298,7 +1282,7 @@ static BaseType_t prvBackoffForRetry( BackoffAlgorithmContext_t * pxRetryParams 
         else if( xBackoffAlgStatus == BackoffAlgorithmSuccess )
         {
             /* Perform the backoff delay. */
-            vTaskDelay( pdMS_TO_TICKS( usNextRetryBackOff ) );
+            osDelay( pdMS_TO_TICKS( usNextRetryBackOff ) );
 
             xReturnStatus = pdPASS;
 
@@ -1318,11 +1302,11 @@ static BaseType_t prvBackoffForRetry( BackoffAlgorithmContext_t * pxRetryParams 
 
 static uint32_t prvGetTimeMs( void )
 {
-    TickType_t xTickCount = 0;
+    uint32_t xTickCount = 0;
     uint32_t ulTimeMs = 0UL;
 
     /* Get the current tick count. */
-    xTickCount = xTaskGetTickCount();
+    xTickCount = osKernelGetTickCount();
 
     /* Convert the ticks to milliseconds. */
     ulTimeMs = ( uint32_t ) xTickCount * MILLISECONDS_PER_TICK;
@@ -1341,13 +1325,11 @@ static MQTTStatus_t prvMqttAgentInit( void )
     MQTTStatus_t xReturn;
     MQTTFixedBuffer_t xFixedBuffer = { .pBuffer = pucNetworkBuffer, .size = MQTT_AGENT_NETWORK_BUFFER_SIZE };
     static uint8_t ucStaticQueueStorageArea[ MQTT_AGENT_COMMAND_QUEUE_LENGTH * sizeof( MQTTAgentCommand_t * ) ];
-    static StaticQueue_t xStaticQueueStructure;
 
     LogDebug( ( "Creating command queue." ) );
-    xCommandQueue.queue = xQueueCreateStatic( MQTT_AGENT_COMMAND_QUEUE_LENGTH,
-                                              sizeof( MQTTAgentCommand_t * ),
-                                              ucStaticQueueStorageArea,
-                                              &xStaticQueueStructure );
+    xCommandQueue.queue = osMessageQueueNew( MQTT_AGENT_COMMAND_QUEUE_LENGTH, 
+                                             sizeof( MQTTAgentCommand_t * ), 
+                                             NULL );
 
     /* Initialize the agent task pool. */
     Agent_InitializePool();
@@ -1542,18 +1524,17 @@ static void prvDisconnectFromMQTTBroker( void )
     xCommandParams.blockTimeMs = MQTT_AGENT_SEND_BLOCK_TIME_MS;
     xCommandParams.cmdCompleteCallback = prvMQTTAgentCmdCompleteCallback;
     xCommandParams.pCmdCompleteCallbackContext = &xCommandContext;
-    xCommandContext.xTaskToNotify = xTaskGetCurrentTaskHandle();
+    xCommandContext.xTaskToNotify = osThreadGetId();
     xCommandContext.pArgs = NULL;
     xCommandContext.xReturnStatus = MQTTSendFailed;
 
     /* Disconnect MQTT session. */
     xCommandStatus = MQTTAgent_Disconnect( &xGlobalMqttAgentContext, &xCommandParams );
     configASSERT( xCommandStatus == MQTTSuccess );
-
-    xTaskNotifyWait( 0,
-                     0,
-                     NULL,
-                     pdMS_TO_TICKS( MQTT_AGENT_MS_TO_WAIT_FOR_NOTIFICATION ) );
+    
+    osThreadFlagsWait( THREAD_NOTIFICATION_FLAG, 
+                       0, 
+                       pdMS_TO_TICKS( MQTT_AGENT_MS_TO_WAIT_FOR_NOTIFICATION ) );
 
     /* End TLS session, then close TCP connection. */
     ( void ) SecureSocketsTransport_Disconnect( &xNetworkContextMqtt );
@@ -1585,7 +1566,7 @@ static OtaMqttStatus_t prvMqttSubscribe( const char * pcTopicFilter,
     xCommandParams.blockTimeMs = MQTT_AGENT_SEND_BLOCK_TIME_MS;
     xCommandParams.cmdCompleteCallback = prvMQTTSubscribeCompleteCallback;
     xCommandParams.pCmdCompleteCallbackContext = &xCommandContext;
-    xCommandContext.xTaskToNotify = xTaskGetCurrentTaskHandle();
+    xCommandContext.xTaskToNotify = osThreadGetId();
     xCommandContext.pArgs = &xSubscribeArgs;
     xCommandContext.xReturnStatus = MQTTSendFailed;
 
@@ -1593,10 +1574,9 @@ static OtaMqttStatus_t prvMqttSubscribe( const char * pcTopicFilter,
     xCommandStatus = MQTTAgent_Subscribe( &xGlobalMqttAgentContext, &xSubscribeArgs, &xCommandParams );
     configASSERT( xCommandStatus == MQTTSuccess );
 
-    xTaskNotifyWait( 0,
-                     0,
-                     NULL,
-                     pdMS_TO_TICKS( MQTT_AGENT_MS_TO_WAIT_FOR_NOTIFICATION ) );
+    osThreadFlagsWait( THREAD_NOTIFICATION_FLAG, 
+                       0, 
+                       pdMS_TO_TICKS( MQTT_AGENT_MS_TO_WAIT_FOR_NOTIFICATION ) );
 
     if( xCommandContext.xReturnStatus != MQTTSuccess )
     {
@@ -1636,17 +1616,17 @@ static OtaMqttStatus_t prvMqttPublish( const char * const pcTopic,
     xCommandParams.blockTimeMs = MQTT_AGENT_SEND_BLOCK_TIME_MS;
     xCommandParams.cmdCompleteCallback = prvMQTTAgentCmdCompleteCallback;
     xCommandParams.pCmdCompleteCallbackContext = &xCommandContext;
-    xCommandContext.xTaskToNotify = xTaskGetCurrentTaskHandle();
+    xCommandContext.xTaskToNotify = osThreadGetId();
     xCommandContext.pArgs = NULL;
     xCommandContext.xReturnStatus = MQTTSendFailed;
 
     xCommandStatus = MQTTAgent_Publish( &xGlobalMqttAgentContext, &xPublishInfo, &xCommandParams );
     configASSERT( xCommandStatus == MQTTSuccess );
 
-    xTaskNotifyWait( 0,
-                     0,
-                     NULL,
-                     pdMS_TO_TICKS( MQTT_AGENT_MS_TO_WAIT_FOR_NOTIFICATION ) );
+
+    osThreadFlagsWait( THREAD_NOTIFICATION_FLAG, 
+                       0, 
+                       pdMS_TO_TICKS( MQTT_AGENT_MS_TO_WAIT_FOR_NOTIFICATION ) );
 
     if( xCommandContext.xReturnStatus != MQTTSuccess )
     {
@@ -1685,7 +1665,7 @@ static OtaMqttStatus_t prvMqttUnSubscribe( const char * pcTopicFilter,
     xCommandParams.blockTimeMs = MQTT_AGENT_SEND_BLOCK_TIME_MS;
     xCommandParams.cmdCompleteCallback = prvMQTTUnsubscribeCompleteCallback;
     xCommandParams.pCmdCompleteCallbackContext = &xCommandContext;
-    xCommandContext.xTaskToNotify = xTaskGetCurrentTaskHandle();
+    xCommandContext.xTaskToNotify = osThreadGetId();
     xCommandContext.pArgs = &xSubscribeArgs;
     xCommandContext.xReturnStatus = MQTTSendFailed;
 
@@ -1693,10 +1673,10 @@ static OtaMqttStatus_t prvMqttUnSubscribe( const char * pcTopicFilter,
     xCommandStatus = MQTTAgent_Unsubscribe( &xGlobalMqttAgentContext, &xSubscribeArgs, &xCommandParams );
     configASSERT( xCommandStatus == MQTTSuccess );
 
-    xTaskNotifyWait( 0,
-                     0,
-                     NULL,
-                     pdMS_TO_TICKS( MQTT_AGENT_MS_TO_WAIT_FOR_NOTIFICATION ) );
+
+    osThreadFlagsWait( THREAD_NOTIFICATION_FLAG, 
+                       0, 
+                       pdMS_TO_TICKS( MQTT_AGENT_MS_TO_WAIT_FOR_NOTIFICATION ) );
 
     if( xCommandContext.xReturnStatus != MQTTSuccess )
     {
@@ -1717,15 +1697,15 @@ static OtaMqttStatus_t prvMqttUnSubscribe( const char * pcTopicFilter,
 static void prvSetOtaInterfaces( OtaInterfaces_t * pxOtaInterfaces )
 {
     /* Initialize OTA library OS Interface. */
-    pxOtaInterfaces->os.event.init = OtaInitEvent_FreeRTOS;
-    pxOtaInterfaces->os.event.send = OtaSendEvent_FreeRTOS;
-    pxOtaInterfaces->os.event.recv = OtaReceiveEvent_FreeRTOS;
-    pxOtaInterfaces->os.event.deinit = OtaDeinitEvent_FreeRTOS;
-    pxOtaInterfaces->os.timer.start = OtaStartTimer_FreeRTOS;
-    pxOtaInterfaces->os.timer.stop = OtaStopTimer_FreeRTOS;
-    pxOtaInterfaces->os.timer.delete = OtaDeleteTimer_FreeRTOS;
-    pxOtaInterfaces->os.mem.malloc = Malloc_FreeRTOS;
-    pxOtaInterfaces->os.mem.free = Free_FreeRTOS;
+    pxOtaInterfaces->os.event.init = OtaInitEvent_CMSISRTOS;
+    pxOtaInterfaces->os.event.send = OtaSendEvent_CMSISRTOS;
+    pxOtaInterfaces->os.event.recv = OtaReceiveEvent_CMSISRTOS;
+    pxOtaInterfaces->os.event.deinit = OtaDeinitEvent_CMSISRTOS;
+    pxOtaInterfaces->os.timer.start = OtaStartTimer_CMSISRTOS;
+    pxOtaInterfaces->os.timer.stop = OtaStopTimer_CMSISRTOS;
+    pxOtaInterfaces->os.timer.delete = OtaDeleteTimer_CMSISRTOS;
+    pxOtaInterfaces->os.mem.malloc = Malloc_CMSISRTOS;
+    pxOtaInterfaces->os.mem.free = Free_CMSISRTOS;
 
     /* Initialize the OTA library MQTT Interface.*/
     pxOtaInterfaces->mqtt.subscribe = prvMqttSubscribe;
@@ -1750,7 +1730,7 @@ static void prvOTAAgentTask( void * pParam )
     OTA_EventProcessingTask( pParam );
     LogInfo( ( "OTA Agent stopped." ) );
 
-    vTaskDelete( NULL );
+    osThreadTerminate( osThreadGetId() );
 }
 /*-----------------------------------------------------------*/
 
@@ -1800,7 +1780,7 @@ static void prvMQTTAgentTask( void * pParam )
         }
     } while( xMQTTStatus != MQTTSuccess );
 
-    vTaskDelete( NULL );
+    osThreadTerminate( osThreadGetId() );
 }
 /*-----------------------------------------------------------*/
 
@@ -1820,7 +1800,7 @@ static BaseType_t prvSuspendOTA( void )
         while( ( OTA_GetState() != OtaAgentStateSuspended ) && ( ulSuspendTimeout > 0 ) )
         {
             /* Wait for OTA Library state to suspend */
-            vTaskDelay( pdMS_TO_TICKS( otaexampleEXAMPLE_TASK_DELAY_MS ) );
+            osDelay( pdMS_TO_TICKS( otaexampleEXAMPLE_TASK_DELAY_MS ) );
             ulSuspendTimeout -= otaexampleEXAMPLE_TASK_DELAY_MS;
         }
 
@@ -1858,7 +1838,7 @@ static BaseType_t prvResumeOTA( void )
         while( ( OTA_GetState() == OtaAgentStateSuspended ) && ( ulSuspendTimeout > 0 ) )
         {
             /* Wait for OTA Library state to suspend */
-            vTaskDelay( pdMS_TO_TICKS( otaexampleEXAMPLE_TASK_DELAY_MS ) );
+            osDelay( pdMS_TO_TICKS( otaexampleEXAMPLE_TASK_DELAY_MS ) );
             ulSuspendTimeout -= otaexampleEXAMPLE_TASK_DELAY_MS;
         }
 
@@ -1919,15 +1899,17 @@ static BaseType_t prvRunOTADemo( void )
 
     if( xStatus == pdPASS )
     {
-        xStatus = xTaskCreate( prvOTAAgentTask,
-                               "OTA Agent Task",
-                               otaexampleAGENT_TASK_STACK_SIZE,
-                               NULL,
-                               otaexampleAGENT_TASK_PRIORITY,
-                               NULL );
+        osThreadAttr_t attr = {
+            .name = "OTA Agent Task",
+            .stack_size = otaexampleAGENT_TASK_STACK_SIZE,
+            .priority = osPriorityNormal
+        };
 
-        if( xStatus != pdPASS )
+        osThreadId_t agent_task = osThreadNew( prvOTAAgentTask, NULL, &attr );
+
+        if( agent_task == NULL )
         {
+            xStatus = pdFAIL;
             LogError( ( "Failed to create OTA agent task:" ) );
         }
     }
@@ -1960,7 +1942,7 @@ static BaseType_t prvRunOTADemo( void )
                            xOtaStatistics.otaPacketsDropped ) );
             }
 #endif /* OTA_STATISTICS_ENABLED */
-            vTaskDelay( pdMS_TO_TICKS( otaexampleEXAMPLE_TASK_DELAY_MS ) );
+            osDelay( pdMS_TO_TICKS( otaexampleEXAMPLE_TASK_DELAY_MS ) );
         }
     }
 
@@ -2012,7 +1994,7 @@ int RunOtaCoreMqttDemo( bool xAwsIotMqttMode,
                appFirmwareVersion.u.x.build ) );
 
     /* Initialize semaphore for buffer operations. */
-    xBufferSemaphore = xSemaphoreCreateMutex();
+    xBufferSemaphore = osMutexNew(NULL);
 
     if( xBufferSemaphore == NULL )
     {
@@ -2023,7 +2005,7 @@ int RunOtaCoreMqttDemo( bool xAwsIotMqttMode,
         xDemoStatus = pdPASS;
     }
 
-    mqtt_mutex = xSemaphoreCreateMutex();
+    mqtt_mutex = osMutexNew(NULL);
     if (!mqtt_lock())
     {
         LogError( ( "Failed get mqtt lock, demo cannot start" ) );
@@ -2052,12 +2034,14 @@ int RunOtaCoreMqttDemo( bool xAwsIotMqttMode,
 
     if( xDemoStatus == pdPASS )
     {
-        if( xTaskCreate( prvMQTTAgentTask,
-                         "MQTT Agent Task",
-                         MQTT_AGENT_TASK_STACK_SIZE,
-                         NULL,
-                         MQTT_AGENT_TASK_PRIORITY,
-                         NULL ) != pdPASS )
+        osThreadAttr_t attr = {
+            .stack_size = MQTT_AGENT_TASK_STACK_SIZE,
+            .priority = osPriorityNormal
+        };
+        
+        osThreadId_t agent_task = osThreadNew( prvMQTTAgentTask, NULL, &attr );
+        
+        if( agent_task == NULL )
         {
             xDemoStatus = pdFAIL;
             LogError( ( "Failed to create MQTT agent task:" ) );
@@ -2094,7 +2078,7 @@ int RunOtaCoreMqttDemo( bool xAwsIotMqttMode,
     if( xBufferSemaphore != NULL )
     {
         /* Cleanup semaphore created for buffer operations. */
-        vSemaphoreDelete( xBufferSemaphore );
+        osMutexDelete( xBufferSemaphore );
     }
 
     return( ( xDemoStatus == pdPASS ) ? EXIT_SUCCESS : EXIT_FAILURE );

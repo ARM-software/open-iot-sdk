@@ -1,6 +1,7 @@
 /*
  * FreeRTOS Common V1.2.0
  * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -36,9 +37,6 @@
 
 /* Task pool include. */
 #include "iot_taskpool.h"
-
-/* Atomic include. */
-#include "iot_atomic.h"
 
 /* Static memory include (if dynamic memory allocation is disabled). */
 #include "private/iot_static_memory.h"

@@ -1,6 +1,7 @@
 /*
  * FreeRTOS HTTPS Client V1.2.0
  * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -185,7 +186,7 @@
     #define IOT_HTTPS_MAX_ALPN_PROTOCOLS_LENGTH     ( 255 ) /* The maximum alpn protocols length is chosen arbitrarily. */
 #endif
 #ifndef IOT_HTTPS_QUEUE_RECV_TICKS
-    #define IOT_HTTPS_QUEUE_RECV_TICKS              ( portMAX_DELAY ) /* The ticks to wait for a #xQueueReceive to complete. */
+    #define IOT_HTTPS_QUEUE_RECV_TICKS              ( osWaitForever ) /* The ticks to wait for a #xQueueReceive to complete. */
 #endif
 #ifndef IOT_HTTPS_QUEUE_SEND_TICKS
     #define IOT_HTTPS_QUEUE_SEND_TICKS              ( 0U ) /* The ticks to wait for a #xQueueSendToBack to complete. */

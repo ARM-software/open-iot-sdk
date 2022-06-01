@@ -1,6 +1,7 @@
 /*
  * FreeRTOS Common V1.1.3
  * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -24,10 +25,8 @@
  */
 
 /* FreeRTOS includes. */
-#include "FreeRTOS.h"
-#include "task.h"
-#include "queue.h"
-#include "semphr.h"
+#include "cmsis_os2.h"
+#include "os_tick.h"
 
 /* Logging includes. */
 #include "iot_logging_task.h"
@@ -38,17 +37,10 @@
 #include <stdarg.h>
 #include <string.h>
 
-/* Sanity check all the definitions required by this file are set. */
-#ifndef configPRINT_STRING
-    #error configPRINT_STRING( x ) must be defined in FreeRTOSConfig.h to use this logging file.  Set configPRINT_STRING( x ) to a function that outputs a string, where X is the string.  For example, #define configPRINT_STRING( x ) MyUARTWriteString( X )
-#endif
-
-#ifndef configLOGGING_MAX_MESSAGE_LENGTH
-    #error configLOGGING_MAX_MESSAGE_LENGTH must be defined in FreeRTOSConfig.h to use this logging file.  configLOGGING_MAX_MESSAGE_LENGTH sets the size of the buffer into which formatted text is written, so also sets the maximum log message length.
-#endif
+#define configLOGGING_MAX_MESSAGE_LENGTH 200
 
 #ifndef configLOGGING_INCLUDE_TIME_AND_TASK_NAME
-    #error configLOGGING_INCLUDE_TIME_AND_TASK_NAME must be defined in FreeRTOSConfig.h to use this logging file.  Set configLOGGING_INCLUDE_TIME_AND_TASK_NAME to 1 to prepend a time stamp, message number and the name of the calling task to each logged message.  Otherwise set to 0.
+    #error configLOGGING_INCLUDE_TIME_AND_TASK_NAME must be defined to use this logging file.  Set configLOGGING_INCLUDE_TIME_AND_TASK_NAME to 1 to prepend a time stamp, message number and the name of the calling task to each logged message.  Otherwise set to 0.
 #endif
 
 /* A block time of 0 just means don't block. */
@@ -111,7 +103,7 @@ static void prvLoggingTask( void * pvParameters );
  * The queue used to pass pointers to log messages from the task that created
  * the message to the task that will performs the output.
  */
-static QueueHandle_t xQueue = NULL;
+static osMessageQueueId_t xQueue = NULL;
 
 /*-----------------------------------------------------------*/
 
@@ -169,29 +161,33 @@ BaseType_t xLoggingTaskInitialize( uint16_t usStackSize,
                                    UBaseType_t uxPriority,
                                    UBaseType_t uxQueueLength )
 {
-    BaseType_t xReturn = pdFAIL;
-
+    osStatus_t xReturn = osError;
+    const osThreadAttr_t threadAttr = {
+        .name  = "Logging",
+        .stack_size = usStackSize,
+        .priority = uxPriority
+    };
     /* Ensure the logging task has not been created already. */
     if( xQueue == NULL )
     {
         /* Create the queue used to pass pointers to strings to the logging task. */
-        xQueue = xQueueCreate( uxQueueLength, sizeof( char ** ) );
+        xQueue = osMessageQueueNew( uxQueueLength, sizeof( char ** ), NULL );
 
         if( xQueue != NULL )
         {
-            if( xTaskCreate( prvLoggingTask, "Logging", usStackSize, NULL, uxPriority, NULL ) == pdPASS )
+            if( osThreadNew( prvLoggingTask, NULL, &threadAttr ) != NULL )
             {
-                xReturn = pdPASS;
+                xReturn = osOK;
             }
             else
             {
                 /* Could not create the task, so delete the queue again. */
-                vQueueDelete( xQueue );
+                osMessageQueueDelete( xQueue );
             }
         }
     }
 
-    return xReturn;
+    return xReturn == osOK ? pdPASS : pdFAIL;
 }
 /*-----------------------------------------------------------*/
 
@@ -205,9 +201,9 @@ static void prvLoggingTask( void * pvParameters )
     for( ; ; )
     {
         /* Block to wait for the next string to print. */
-        if( xQueueReceive( xQueue, &pcReceivedString, portMAX_DELAY ) == pdPASS )
+        if( osMessageQueueGet( xQueue, &pcReceivedString, NULL, osWaitForever ) == osOK )
         {
-            configPRINT_STRING( pcReceivedString );
+            print_log( pcReceivedString );
 
             vPortFree( ( void * ) pcReceivedString );
         }
@@ -231,7 +227,7 @@ static void prvLoggingPrintfCommon( uint8_t usLoggingLevel,
 
     /* The queue is created by xLoggingTaskInitialize().  Check
      * xLoggingTaskInitialize() has been called. */
-    configASSERT( xQueue );
+    configASSERT( (uint32_t) xQueue );
 
     /* Allocate a buffer to hold the log message. */
     pcPrintString = pvPortMalloc( configLOGGING_MAX_MESSAGE_LENGTH );
@@ -245,29 +241,28 @@ static void prvLoggingPrintfCommon( uint8_t usLoggingLevel,
         if( strcmp( pcFormat, "\n" ) != 0 )
         {
             /* Add metadata of task name and tick count if config is enabled. */
-            #if ( configLOGGING_INCLUDE_TIME_AND_TASK_NAME == 1 )
                 {
-                    const char * pcTaskName;
+                    const char * pcTaskName = NULL;
                     const char * pcNoTask = "None";
                     static BaseType_t xMessageNumber = 0;
 
                     /* Add a time stamp and the name of the calling task to the
                      * start of the log. */
-                    if( xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED )
+                    if( osKernelGetState() != osKernelInactive )
                     {
-                        pcTaskName = pcTaskGetName( NULL );
+                        pcTaskName = osThreadGetName( osThreadGetId() );
                     }
-                    else
+
+                    if ( pcTaskName == NULL )
                     {
                         pcTaskName = pcNoTask;
                     }
 
                     xLength += snprintf_safe( pcPrintString, configLOGGING_MAX_MESSAGE_LENGTH, "%lu %lu [%s] ",
                                               ( unsigned long ) xMessageNumber++,
-                                              ( unsigned long ) xTaskGetTickCount(),
+                                              ( unsigned long ) OS_Tick_GetCount(),
                                               pcTaskName );
                 }
-            #endif /* if ( configLOGGING_INCLUDE_TIME_AND_TASK_NAME == 1 ) */
         }
 
         /* Choose the string for the log level metadata for the log message. */
@@ -348,7 +343,7 @@ static void prvLoggingPrintfCommon( uint8_t usLoggingLevel,
         if( xLength > 0 )
         {
             /* Send the string to the logging task for IO. */
-            if( xQueueSend( xQueue, &pcPrintString, loggingDONT_BLOCK ) != pdPASS )
+            if( osMessageQueuePut( xQueue, &pcPrintString, 0U, loggingDONT_BLOCK ) != osOK )
             {
                 /* The buffer was not sent so must be freed again. */
                 vPortFree( ( void * ) pcPrintString );
@@ -463,7 +458,7 @@ void vLoggingPrint( const char * pcMessage )
 
     /* The queue is created by xLoggingTaskInitialize().  Check
      * xLoggingTaskInitialize() has been called. */
-    configASSERT( xQueue );
+    configASSERT( (uint32_t) xQueue );
 
     xLength = strlen( pcMessage ) + 1;
     pcPrintString = pvPortMalloc( xLength );
@@ -473,7 +468,7 @@ void vLoggingPrint( const char * pcMessage )
         strncpy( pcPrintString, pcMessage, xLength );
 
         /* Send the string to the logging task for IO. */
-        if( xQueueSend( xQueue, &pcPrintString, loggingDONT_BLOCK ) != pdPASS )
+        if( osMessageQueuePut( xQueue, &pcPrintString, 0u, loggingDONT_BLOCK ) != osOK )
         {
             /* The buffer was not sent so must be freed again. */
             vPortFree( ( void * ) pcPrintString );

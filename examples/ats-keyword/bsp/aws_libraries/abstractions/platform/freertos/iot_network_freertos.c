@@ -1,6 +1,7 @@
 /*
  * FreeRTOS Platform V1.1.2
  * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -35,9 +36,8 @@
 /* Standard includes. */
 #include <string.h>
 
-/* FreeRTOS includes. */
-#include "semphr.h"
-#include "event_groups.h"
+#include "cmsis_os2.h"
+#include "iot_config.h"
 
 /* Error handling include. */
 #include "private/iot_error.h"
@@ -86,9 +86,9 @@
 typedef struct _networkConnection
 {
     Socket_t socket;                             /**< @brief FreeRTOS Secure Sockets handle. */
-    StaticSemaphore_t socketMutex;               /**< @brief Prevents concurrent threads from sending on a socket. */
-    StaticEventGroup_t connectionFlags;          /**< @brief Synchronizes with the receive task. */
-    TaskHandle_t receiveTask;                    /**< @brief Handle of the receive task, if any. */
+    osMutexId_t socketMutex;                     /**< @brief Prevents concurrent threads from sending on a socket. */
+    osEventFlagsId_t connectionFlags;            /**< @brief Synchronizes with the receive task. */
+    osThreadId_t receiveTask;                    /**< @brief Handle of the receive task, if any. */
     IotNetworkReceiveCallback_t receiveCallback; /**< @brief Network receive callback, if any. */
     void * pReceiveContext;                      /**< @brief The context for the receive callback. */
     bool bufferedByteValid;                      /**< @brief Used to determine if the buffered byte is valid. */
@@ -143,7 +143,7 @@ static void _networkReceiveTask( void * pArgument )
 {
     bool destroyConnection = false;
     int32_t socketStatus = 0;
-    EventBits_t connectionFlags = 0;
+    uint32_t connectionFlags = 0;
 
     /* Cast network connection to the correct type. */
     _networkConnection_t * pNetworkConnection = pArgument;
@@ -163,7 +163,7 @@ static void _networkReceiveTask( void * pArgument )
                                          1,
                                          0 );
 
-            connectionFlags = xEventGroupGetBits( ( EventGroupHandle_t ) &( pNetworkConnection->connectionFlags ) );
+            connectionFlags = osEventFlagsGet( pNetworkConnection->connectionFlags );
 
             if( ( connectionFlags & _FLAG_SHUTDOWN ) == _FLAG_SHUTDOWN )
             {
@@ -191,7 +191,7 @@ static void _networkReceiveTask( void * pArgument )
         /* Check if the connection was destroyed by the receive callback. This
          * does not need to be thread-safe because the destroy connection function
          * may only be called once (per its API doc). */
-        connectionFlags = xEventGroupGetBits( ( EventGroupHandle_t ) &( pNetworkConnection->connectionFlags ) );
+        connectionFlags = osEventFlagsGet( pNetworkConnection->connectionFlags );
 
         /* Break out of receive task loop if connection is closed or destroyed. */
         if( ( connectionFlags & _FLAG_RECEIVE_TASK_CONNECTION_DESTROYED ) == _FLAG_RECEIVE_TASK_CONNECTION_DESTROYED )
@@ -215,11 +215,13 @@ static void _networkReceiveTask( void * pArgument )
     else
     {
         /* Set the flag to indicate that the receive task has exited. */
-        ( void ) xEventGroupSetBits( ( EventGroupHandle_t ) &( pNetworkConnection->connectionFlags ),
-                                     _FLAG_RECEIVE_TASK_EXITED );
+        uint32_t flags = osEventFlagsSet( pNetworkConnection->connectionFlags, _FLAG_RECEIVE_TASK_EXITED );
+        if ( flags & osFlagsError ) { 
+            IotLogError( "Failed to notify exit of network reception task" );
+        }
     }
 
-    vTaskDelete( NULL );
+    osThreadExit();
 }
 
 /*-----------------------------------------------------------*/
@@ -319,8 +321,6 @@ IotNetworkError_t IotNetworkAfr_Create( void * pConnectionInfo,
     Socket_t tcpSocket = SOCKETS_INVALID_SOCKET;
     int32_t socketStatus = SOCKETS_ERROR_NONE;
     SocketsSockaddr_t serverAddress = { 0 };
-    EventGroupHandle_t pConnectionFlags = NULL;
-    SemaphoreHandle_t pConnectionMutex = NULL;
     const TickType_t receiveTimeout = pdMS_TO_TICKS( IOT_NETWORK_SOCKET_POLL_MS );
     _networkConnection_t * pNewNetworkConnection = NULL;
 
@@ -350,6 +350,22 @@ IotNetworkError_t IotNetworkAfr_Create( void * pConnectionInfo,
 
     /* Clear the connection information. */
     ( void ) memset( pNewNetworkConnection, 0x00, sizeof( _networkConnection_t ) );
+    
+    pNewNetworkConnection->socketMutex = osMutexNew( NULL );
+    
+    if( pNewNetworkConnection->socketMutex == NULL )
+    {
+        IotLogError( "Failed to allocate memory for new network connection mutex." );
+        IOT_SET_AND_GOTO_CLEANUP( IOT_NETWORK_NO_MEMORY );
+    }
+    
+    pNewNetworkConnection->connectionFlags = osEventFlagsNew( NULL );
+    
+    if( pNewNetworkConnection->connectionFlags == NULL)
+    {
+        IotLogError( "Failed to allocate memory for new network connection flags." );
+        IOT_SET_AND_GOTO_CLEANUP( IOT_NETWORK_NO_MEMORY );
+    }
 
     /* Create a new TCP socket. */
     tcpSocket = SOCKETS_Socket( SOCKETS_AF_INET,
@@ -421,6 +437,16 @@ IotNetworkError_t IotNetworkAfr_Create( void * pConnectionInfo,
         /* Clear the connection information. */
         if( pNewNetworkConnection != NULL )
         {
+            if( pNewNetworkConnection->socketMutex != NULL )
+            {
+                osMutexDelete( pNewNetworkConnection->socketMutex );
+            }
+        
+            if( pNewNetworkConnection->connectionFlags != NULL)
+            {
+                osEventFlagsDelete( pNewNetworkConnection->connectionFlags );
+            }
+            
             vPortFree( pNewNetworkConnection );
         }
     }
@@ -428,15 +454,6 @@ IotNetworkError_t IotNetworkAfr_Create( void * pConnectionInfo,
     {
         /* Set the socket. */
         pNewNetworkConnection->socket = tcpSocket;
-
-        /* Create the connection event flags and mutex. */
-        pConnectionFlags = xEventGroupCreateStatic( &( pNewNetworkConnection->connectionFlags ) );
-        pConnectionMutex = xSemaphoreCreateMutexStatic( &( pNewNetworkConnection->socketMutex ) );
-
-        /* Static event flags and mutex creation should never fail. The handles
-         * should point inside the connection object. */
-        configASSERT( pConnectionFlags == ( EventGroupHandle_t ) &( pNewNetworkConnection->connectionFlags ) );
-        configASSERT( pConnectionMutex == ( SemaphoreHandle_t ) &( pNewNetworkConnection->socketMutex ) );
 
         /* Set the output parameter. */
         *pNetworkConnection = pNewNetworkConnection;
@@ -461,15 +478,18 @@ IotNetworkError_t IotNetworkAfr_SetReceiveCallback( void * pConnection,
     pNetworkConnection->pReceiveContext = pContext;
 
     /* No flags should be set. */
-    configASSERT( xEventGroupGetBits( ( EventGroupHandle_t ) &( pNetworkConnection->connectionFlags ) ) == 0 );
+    configASSERT( osEventFlagsGet( pNetworkConnection->connectionFlags ) == 0 );
 
     /* Create task that waits for incoming data. */
-    if( xTaskCreate( _networkReceiveTask,
-                     "NetRecv",
-                     IOT_NETWORK_RECEIVE_TASK_STACK_SIZE,
-                     pNetworkConnection,
-                     IOT_NETWORK_RECEIVE_TASK_PRIORITY,
-                     &( pNetworkConnection->receiveTask ) ) != pdPASS )
+    osThreadAttr_t attr = {
+      .stack_size = IOT_NETWORK_RECEIVE_TASK_STACK_SIZE,
+      .priority = osPriorityNormal
+    };
+    
+    pNetworkConnection->receiveTask = osThreadNew( _networkReceiveTask, pNetworkConnection, &attr);
+    
+    
+    if( pNetworkConnection->receiveTask == NULL )
     {
         IotLogError( "Failed to create network receive task." );
 
@@ -493,8 +513,7 @@ size_t IotNetworkAfr_Send( void * pConnection,
 
     /* Only one thread at a time may send on the connection. Lock the socket
      * mutex to prevent other threads from sending. */
-    if( xSemaphoreTake( ( QueueHandle_t ) &( pNetworkConnection->socketMutex ),
-                        portMAX_DELAY ) == pdTRUE )
+    if( osMutexAcquire( pNetworkConnection->socketMutex, osWaitForever ) == osOK )
     {
         while( bytesRemaining > 0U )
         {
@@ -517,7 +536,9 @@ size_t IotNetworkAfr_Send( void * pConnection,
             }
         }
 
-        xSemaphoreGive( ( QueueHandle_t ) &( pNetworkConnection->socketMutex ) );
+        if ( osMutexRelease( pNetworkConnection->socketMutex ) != osOK ) {
+            IotLogError( "Failed to release socketMutex in IotNetworkAfr_Send" );
+        }
     }
 
     return bytesSent;
@@ -649,20 +670,24 @@ IotNetworkError_t IotNetworkAfr_Close( void * pConnection )
     _networkConnection_t * pNetworkConnection = ( _networkConnection_t * ) pConnection;
 
     /* Set the shutdown flag so that the network receive task can stop polling. */
-    ( void ) xEventGroupSetBits( ( EventGroupHandle_t ) &( pNetworkConnection->connectionFlags ),
-                                 _FLAG_SHUTDOWN );
+    uint32_t flags = osEventFlagsSet( pNetworkConnection->connectionFlags, _FLAG_SHUTDOWN );
+    if ( flags & osFlagsError ) {
+        return IOT_NETWORK_SYSTEM_ERROR;
+    }
 
     /* If this function is not called from the receive task, wait for the receive task to exit. */
-    if( ( pNetworkConnection->receiveTask != NULL ) && ( xTaskGetCurrentTaskHandle() != pNetworkConnection->receiveTask ) )
+    if( ( pNetworkConnection->receiveTask != NULL ) && ( osThreadGetId() != pNetworkConnection->receiveTask ) )
     {
         /* Wait for the network receive task to exit so that the socket can be shutdown safely
          * without causing the socket to block forever if there are pending reads or writes
          * from other tasks. Do not clear the flag as IotNetworkAfr_Destroy checks it. */
-        ( void ) xEventGroupWaitBits( ( EventGroupHandle_t ) &( pNetworkConnection->connectionFlags ),
-                                      _FLAG_RECEIVE_TASK_EXITED,
-                                      pdFALSE,
-                                      pdTRUE,
-                                      portMAX_DELAY );
+        flags = osEventFlagsWait( pNetworkConnection->connectionFlags,
+                                   _FLAG_RECEIVE_TASK_EXITED,
+                                   osFlagsNoClear | osFlagsWaitAll,
+                                   osWaitForever );
+        if ( flags & osFlagsError ) { 
+            return IOT_NETWORK_SYSTEM_ERROR;
+        }
     }
 
     /* Call Secure Sockets shutdown function to close connection. */
@@ -685,11 +710,13 @@ IotNetworkError_t IotNetworkAfr_Destroy( void * pConnection )
     _networkConnection_t * pNetworkConnection = ( _networkConnection_t * ) pConnection;
 
     /* Check if this function is being called from the receive task. */
-    if( xTaskGetCurrentTaskHandle() == pNetworkConnection->receiveTask )
+    if( osThreadGetId() == pNetworkConnection->receiveTask )
     {
         /* Set the flag specifying that the connection is destroyed. */
-        ( void ) xEventGroupSetBits( ( EventGroupHandle_t ) &( pNetworkConnection->connectionFlags ),
-                                     _FLAG_RECEIVE_TASK_CONNECTION_DESTROYED );
+        uint32_t flags = osEventFlagsSet( pNetworkConnection->connectionFlags, _FLAG_RECEIVE_TASK_CONNECTION_DESTROYED );
+        if ( flags & osFlagsError ) { 
+            return IOT_NETWORK_SYSTEM_ERROR;
+        }
     }
     else
     {
@@ -697,8 +724,8 @@ IotNetworkError_t IotNetworkAfr_Destroy( void * pConnection )
          * the receive task should have already exited. */
         if( pNetworkConnection->receiveCallback != NULL )
         {
-            EventBits_t connectionFlags;
-            connectionFlags = xEventGroupGetBits( ( EventGroupHandle_t ) &( pNetworkConnection->connectionFlags ) );
+            uint32_t connectionFlags;
+            connectionFlags = osEventFlagsGet( pNetworkConnection->connectionFlags );
 
             configASSERT( ( connectionFlags & _FLAG_RECEIVE_TASK_EXITED ) == _FLAG_RECEIVE_TASK_EXITED );
 

@@ -63,7 +63,7 @@ int ota_privision_code_signing_key(psa_key_handle_t * key_handle)
     }
 
     psa_set_key_usage_flags( &attributes, PSA_KEY_USAGE_VERIFY_HASH );
-    psa_set_key_algorithm( &attributes, PSA_ALG_RSA_PSS( PSA_ALG_SHA_256 ) );
+    psa_set_key_algorithm( &attributes, PSA_ALG_RSA_PSS_ANY_SALT( PSA_ALG_SHA_256 ) );
     psa_set_key_type( &attributes, PSA_KEY_TYPE_RSA_PUBLIC_KEY );
     psa_set_key_bits(&attributes, 2048);
     status = psa_import_key(&attributes, ( const uint8_t *)public_key_der, xLength, &key_handle_tmp );

@@ -1,6 +1,7 @@
 /*
  * Amazon FreeRTOS V1.1.4
  * Copyright (C) 2018 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -32,13 +33,8 @@
 #ifndef _AWS_PKCS11_CONFIG_H_
 #define _AWS_PKCS11_CONFIG_H_
 
-#include "FreeRTOS.h"
+#include "RTOS_config.h"
 #include "logging_levels.h"
-
-// needed for pkcs psa source to compile
-#include "semphr.h"
-#include "task.h"
-//#include "FreeRTOSConfig.h"
 
 #include "iot_logging.h"
 extern void vLoggingPrintf( const char * pcFormat,

@@ -1,6 +1,7 @@
 /*
  * FreeRTOS V202012.00
  * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -23,10 +24,9 @@
  * http://www.FreeRTOS.org
  */
 
+#include "RTOS_config.h"
+
 /* Default configuration for all demos. Individual demos can override these below */
-#ifndef democonfigDEMO_STACKSIZE
-# define democonfigDEMO_STACKSIZE    ( configMINIMAL_STACK_SIZE * 8 )
-#endif
 
 #define democonfigNETWORK_TYPES     ( AWSIOT_NETWORK_TYPE_ETH )
 

@@ -1,6 +1,7 @@
 /*
  * FreeRTOS Kernel V10.4.3
  * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -27,6 +28,8 @@
 
 #ifndef PORTMACRO_H
     #define PORTMACRO_H
+
+#include "basetypes.h"
 
     #ifdef __cplusplus
         extern "C" {
@@ -57,31 +60,14 @@
 /*-----------------------------------------------------------*/
 
 /**
- * @brief Type definitions.
+ * @brief Tick definitions.
  */
-    #define portCHAR          char
-    #define portFLOAT         float
-    #define portDOUBLE        double
-    #define portLONG          long
-    #define portSHORT         short
-    #define portSTACK_TYPE    uint32_t
-    #define portBASE_TYPE     long
 
-    typedef portSTACK_TYPE   StackType_t;
-    typedef long             BaseType_t;
-    typedef unsigned long    UBaseType_t;
-
-    #if ( configUSE_16_BIT_TICKS == 1 )
-        typedef uint16_t     TickType_t;
-        #define portMAX_DELAY              ( TickType_t ) 0xffff
-    #else
-        typedef uint32_t     TickType_t;
-        #define portMAX_DELAY              ( TickType_t ) 0xffffffffUL
-
+#define portMAX_DELAY              ( TickType_t ) 0xffffffffUL
 /* 32-bit tick type on a 32-bit architecture, so reads of the tick count do
  * not need to be guarded with a critical section. */
-        #define portTICK_TYPE_IS_ATOMIC    1
-    #endif
+#define portTICK_TYPE_IS_ATOMIC    1
+
 /*-----------------------------------------------------------*/
 
 /**

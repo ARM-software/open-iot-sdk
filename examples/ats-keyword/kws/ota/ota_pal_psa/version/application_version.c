@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2021 Arm Limited. All rights reserved.
+ * Copyright (c) 2020-2022 Arm Limited. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -29,8 +29,6 @@
 /* C Runtime includes. */
 #include <stdlib.h>
 
-/* Amazon FreeRTOS include. */
-#include "FreeRTOS.h"
 #include "application_version.h"
 
 /* TF-M Firmware Update service. */
@@ -51,7 +49,7 @@ int GetImageVersionPSA( uint8_t ucImageType )
     {
         xAppFirmwareVersion.u.x.major = xImageInfo.version.iv_major;
         xAppFirmwareVersion.u.x.minor = xImageInfo.version.iv_minor;
-        xAppFirmwareVersion.u.x.build = (uint16_t)xImageInfo.version.iv_build_num;
+        xAppFirmwareVersion.u.x.build = (uint16_t)xImageInfo.version.iv_revision;
         return 0;
     }
     else

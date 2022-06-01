@@ -1,6 +1,7 @@
 /*
  * FreeRTOS MQTT V2.3.1
  * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -35,8 +36,7 @@
 #define _AWS_MQTT_AGENT_CONFIG_DEFAULTS_H_
 
 /* FreeRTOS includes. */
-#include "FreeRTOS.h"
-#include "task.h"
+#include "cmsis_os2.h"
 
 /**
  * @brief Controls whether or not to report usage metrics to the

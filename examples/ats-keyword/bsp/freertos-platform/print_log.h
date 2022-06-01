@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019 Arm Limited. All Rights Reserved.
+ * Copyright (c) 2018-2022 Arm Limited. All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -27,8 +27,8 @@
 extern "C" {
 #endif
 
-#include "FreeRTOS.h"
-#include "semphr.h"
+#include "cmsis_os2.h" 
+#include "RTOS_config.h"
 
 #define ERR_LEVEL		3
 #define WARN_LEVEL		2
@@ -46,7 +46,7 @@ extern "C" {
 /**
  * @brief Initialize the mutex of UART.
  */
-void vUARTLockInit( void ) PRIVILEGED_FUNCTION;
+void vUARTLockInit( void ) __attribute__( ( section( "privileged_functions" ) ) );
 
 void print_log( const char *format, ... );
 

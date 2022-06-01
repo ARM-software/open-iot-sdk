@@ -1,6 +1,7 @@
 /*
  * FreeRTOS V202012.00
  * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -29,10 +30,7 @@
  */
 #include <string.h>
 
-#include "FreeRTOS.h"
-#include "task.h"
-#include "queue.h"
-#include "semphr.h"
+#include "cmsis_os2.h"
 
 #include "iot_demo_logging.h"
 #include "iot_network_manager_private.h"
@@ -91,7 +89,7 @@
 /**
  * @brief Priority of the network manager task.
  */
-#define NETWORK_MANAGER_TASK_PRIORITY            ( tskIDLE_PRIORITY )
+#define NETWORK_MANAGER_TASK_PRIORITY            ( osPriorityNormal )
 
 /**
  * @brief Stack size for network manager task.
@@ -148,9 +146,9 @@ typedef struct IotNetworkManager
     IotNMNetwork_t * pNetworks;
     size_t numNetworks;
     IotNMSubscription_t subscriptions[ NETWORK_MANAGER_MAX_SUBSCRIPTIONS ];
-    QueueHandle_t eventQueue;
-    SemaphoreHandle_t globalMutex;
-    SemaphoreHandle_t subscriptionsMutex;
+    osMessageQueueId_t eventQueue;
+    osMutexId_t globalMutex;
+    osMutexId_t subscriptionsMutex;
 } IotNetworkManagerInfo_t;
 
 #if BLE_ENABLED
@@ -483,16 +481,16 @@ static IotNetworkManagerInfo_t networkManager;
             IotLogInfo( "BLE Connected to remote device, connId = %d\n", connectionID );
             IotBle_StopAdv( NULL );
             event.eventType = IOT_NETWORK_EVENT_CONNECTED;
-            sendStatus = xQueueSend( networkManager.eventQueue, &event, ( TickType_t ) 1U );
-            configASSERT( sendStatus == pdTRUE );
+            sendStatus = osMessageQueuePut( networkManager.eventQueue, &event, 0, ( uint32_t ) 1U );
+            configASSERT( sendStatus == osOK );
         }
         else
         {
             IotLogInfo( "BLE disconnected with remote device, connId = %d \n", connectionID );
             ( void ) IotBle_StartAdv( NULL );
             event.eventType = IOT_NETWORK_EVENT_DISCONNECTED;
-            sendStatus = xQueueSend( networkManager.eventQueue, &event, ( TickType_t ) 1U );
-            configASSERT( sendStatus == pdTRUE );
+            sendStatus = osMessageQueuePut( networkManager.eventQueue, &event, 0, ( uint32_t ) 1U );
+            configASSERT( sendStatus == osOK );
         }
     }
 
@@ -727,15 +725,15 @@ static IotNetworkManagerInfo_t networkManager;
             pucIpAddr = ( uint8_t * ) ( &pxEvent->xInfo.xIPReady.xIPAddress.ulAddress[ 0 ] );
             IotLogInfo( "Connected to WiFi access point, ip address: %d.%d.%d.%d.", pucIpAddr[ 0 ], pucIpAddr[ 1 ], pucIpAddr[ 2 ], pucIpAddr[ 3 ] );
             event.eventType = IOT_NETWORK_EVENT_CONNECTED;
-            status = xQueueSend( networkManager.eventQueue, &event, ( TickType_t ) 1U );
-            configASSERT( status == pdTRUE );
+            status = osMessageQueuePut( networkManager.eventQueue, &event, 0, ( uint32_t ) 1U );
+            configASSERT( status == osOK );
         }
         else if( pxEvent->xEventType == eWiFiEventDisconnected )
         {
             IotLogInfo( "Disconnected from WiFi access point, reason code: %d.", pxEvent->xInfo.xDisconnected.xReason );
             event.eventType = IOT_NETWORK_EVENT_DISCONNECTED;
-            status = xQueueSend( networkManager.eventQueue, &event, ( TickType_t ) 1U );
-            configASSERT( status == pdTRUE );
+            status = osMessageQueuePut( networkManager.eventQueue, &event, 0, ( uint32_t ) 1U );
+            configASSERT( status == osOK );
         }
     }
 
@@ -828,15 +826,15 @@ static void prvNetworkManagerTask( void * pvParams )
 
     for( ; ; )
     {
-        status = xQueueReceive( networkManager.eventQueue, &event, portMAX_DELAY );
+        status = osMessageQueueGet( networkManager.eventQueue, &event, NULL, osWaitForever );
 
-        if( status == pdTRUE )
+        if( status == osOK )
         {
             stateChange = false;
             pNetwork = prvGetNetworkInstance( event.networkType );
             configASSERT( pNetwork != NULL );
 
-            xSemaphoreTake( networkManager.globalMutex, portMAX_DELAY );
+            osMutexAcquire( networkManager.globalMutex, osWaitForever );
 
             if( ( pNetwork->state == eNetworkStateEnabled ) && ( event.eventType == IOT_NETWORK_EVENT_CONNECTED ) )
             {
@@ -849,13 +847,13 @@ static void prvNetworkManagerTask( void * pvParams )
                 stateChange = true;
             }
 
-            xSemaphoreGive( networkManager.globalMutex );
+            osMutexRelease( networkManager.globalMutex );
 
             if( stateChange )
             {
-                xSemaphoreTake( networkManager.subscriptionsMutex, portMAX_DELAY );
+                osMutexAcquire( networkManager.subscriptionsMutex, osWaitForever );
                 prvDispatch( event.networkType, pNetwork->state );
-                xSemaphoreGive( networkManager.subscriptionsMutex );
+                osMutexRelease( networkManager.subscriptionsMutex );
             }
         }
     }
@@ -903,7 +901,7 @@ BaseType_t AwsIotNetworkManager_Init( void )
 
         memset( &networkManager, 0x00, sizeof( IotNetworkManagerInfo_t ) );
 
-        networkManager.globalMutex = xSemaphoreCreateMutex();
+        networkManager.globalMutex = osMutexNew( NULL );
 
         if( networkManager.globalMutex == NULL )
         {
@@ -913,7 +911,7 @@ BaseType_t AwsIotNetworkManager_Init( void )
 
         if( status == pdTRUE )
         {
-            networkManager.subscriptionsMutex = xSemaphoreCreateMutex();
+            networkManager.subscriptionsMutex = osMutexNew( NULL );
 
             if( networkManager.subscriptionsMutex == NULL )
             {
@@ -924,7 +922,7 @@ BaseType_t AwsIotNetworkManager_Init( void )
 
         if( status == pdTRUE )
         {
-            networkManager.eventQueue = xQueueCreate( NETWORK_MANAGER_EVENT_QUEUE_SIZE, sizeof( IotNetworkEvent_t ) );
+            networkManager.eventQueue = osMessageQueueNew( NETWORK_MANAGER_EVENT_QUEUE_SIZE, sizeof( IotNetworkEvent_t ), NULL );
 
             if( networkManager.eventQueue == NULL )
             {
@@ -935,13 +933,20 @@ BaseType_t AwsIotNetworkManager_Init( void )
 
         if( status == pdTRUE )
         {
-            if( ( status = xTaskCreate( prvNetworkManagerTask,
-                                        "NetworkManager",
-                                        NETWORK_MANAGER_TASK_STACK_SIZE,
-                                        NULL,
-                                        NETWORK_MANAGER_TASK_PRIORITY,
-                                        NULL ) ) != pdPASS )
+            osThreadAttr_t attr = {
+                .name = "NetworkManager",
+                .stack_size = NETWORK_MANAGER_TASK_STACK_SIZE,
+                .priority = NETWORK_MANAGER_TASK_PRIORITY
+            };
+            osThreadId_t thread_id = osThreadNew( prvNetworkManagerTask, NULL, &attr );
+
+            if( thread_id != NULL )
             {
+                status = pdTRUE;
+            }
+            else
+            {
+                status = pdFALSE;
                 IotLogError( "Failed to create network manager task." );
             }
         }
@@ -966,7 +971,7 @@ BaseType_t AwsIotNetworkManager_SubscribeForStateChange( uint32_t networkTypes,
     size_t index;
     IotNMSubscription_t * pSubscription = NULL;
 
-    xSemaphoreTake( networkManager.subscriptionsMutex, portMAX_DELAY );
+    osMutexAcquire( networkManager.subscriptionsMutex, osWaitForever );
 
     for( index = 0; index < NETWORK_MANAGER_MAX_SUBSCRIPTIONS; index++ )
     {
@@ -984,7 +989,7 @@ BaseType_t AwsIotNetworkManager_SubscribeForStateChange( uint32_t networkTypes,
         }
     }
 
-    xSemaphoreGive( networkManager.subscriptionsMutex );
+    osMutexRelease( networkManager.subscriptionsMutex );
 
     if( ret == pdFALSE )
     {
@@ -1000,7 +1005,7 @@ BaseType_t AwsIotNetworkManager_RemoveSubscription( IotNetworkManagerSubscriptio
     size_t index;
     IotNMSubscription_t * pSubscription = NULL;
 
-    xSemaphoreTake( networkManager.subscriptionsMutex, portMAX_DELAY );
+    osMutexAcquire( networkManager.subscriptionsMutex, osWaitForever );
 
     for( index = 0; index < NETWORK_MANAGER_MAX_SUBSCRIPTIONS; index++ )
     {
@@ -1014,7 +1019,7 @@ BaseType_t AwsIotNetworkManager_RemoveSubscription( IotNetworkManagerSubscriptio
         }
     }
 
-    xSemaphoreGive( networkManager.subscriptionsMutex );
+    osMutexRelease( networkManager.subscriptionsMutex );
 
     if( ret == pdFALSE )
     {
@@ -1073,7 +1078,7 @@ uint32_t AwsIotNetworkManager_EnableNetwork( uint32_t networkTypes )
 {
     uint32_t enabled = AWSIOT_NETWORK_TYPE_NONE;
 
-    xSemaphoreTake( networkManager.globalMutex, portMAX_DELAY );
+    osMutexAcquire( networkManager.globalMutex, osWaitForever );
 
     #if BLE_ENABLED
         if( ( networkTypes & AWSIOT_NETWORK_TYPE_BLE ) == AWSIOT_NETWORK_TYPE_BLE )
@@ -1105,7 +1110,7 @@ uint32_t AwsIotNetworkManager_EnableNetwork( uint32_t networkTypes )
         }
     #endif
 
-    xSemaphoreGive( networkManager.globalMutex );
+    osMutexRelease( networkManager.globalMutex );
 
     return enabled;
 }
@@ -1117,7 +1122,7 @@ uint32_t AwsIotNetworkManager_DisableNetwork( uint32_t networkTypes )
     /* Unused parameter when no networks enabled */
     ( void ) networkTypes;
 
-    xSemaphoreTake( networkManager.globalMutex, portMAX_DELAY );
+    osMutexAcquire( networkManager.globalMutex, osWaitForever );
 
     #if WIFI_ENABLED
         if( ( networkTypes & AWSIOT_NETWORK_TYPE_WIFI ) == AWSIOT_NETWORK_TYPE_WIFI )
@@ -1149,7 +1154,7 @@ uint32_t AwsIotNetworkManager_DisableNetwork( uint32_t networkTypes )
         }
     #endif
 
-    xSemaphoreGive( networkManager.globalMutex );
+    osMutexRelease( networkManager.globalMutex );
 
 
     return disabled;
