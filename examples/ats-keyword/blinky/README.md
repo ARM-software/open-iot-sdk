@@ -1,3 +1,5 @@
 # Blinky Example
 
-Blinky demonstrates TFM secure/non-secure partition on Corstone 300, with the non-secure side responsible for periodically blinking a set of LEDs.
+Blinky demonstrates a [TrustedFirmware-M](https://www.trustedfirmware.org/projects/tf-m/) controlled secure/non-secure partition configuration on Arm Corstone-300 series platforms, using the non-secure side of the Armv8-M processor for code that periodically blinks a set of LEDs.
+
+In this folder you will find all the source code needed that implements the Blinky application.
