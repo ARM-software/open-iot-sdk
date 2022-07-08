@@ -13,11 +13,24 @@ endif()
 include(ExternalProject)
 include(FetchContent)
 
+# CMake processes toolchain file during first call to project(), so it needs to exist first
+FetchContent_Declare(iotsdk-toolchains
+    GIT_REPOSITORY  https://git.gitlab.arm.com/iot/open-iot-sdk/toolchain.git
+    GIT_TAG         126d2092a2325c77fdf36043e931293c62e2ad29
+    SOURCE_DIR      ${CMAKE_BINARY_DIR}/toolchains
+)
+FetchContent_MakeAvailable(iotsdk-toolchains)
+
+project(blinky LANGUAGES C CXX)
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_C_STANDARD 99)
+
 # Declare the Open IoT SDK
 FetchContent_Declare(
   open_iot_sdk
   GIT_REPOSITORY https://git.gitlab.arm.com/iot/open-iot-sdk/sdk.git
-  GIT_TAG        be197dc93c9a61f4c5873d8c5444fa668fdcc09e
+  GIT_TAG        bf11e35384e87f055ba2932f03eab09253186dcb
 )
 set(open_iot_sdk_POPULATED TRUE)
 
@@ -34,10 +47,25 @@ set(VARIANT "FVP")
 # Make the Open IoT SDK available
 FetchContent_MakeAvailable(open_iot_sdk)
 
-# Setup project
+# Fetch project_options
+FetchContent_Declare(project_options
+    GIT_REPOSITORY  https://github.com/cpp-best-practices/project_options.git
+    GIT_TAG         v0.21.0
+)
+FetchContent_MakeAvailable(project_options)
+include(${project_options_SOURCE_DIR}/Index.cmake)
+include(${project_options_SOURCE_DIR}/src/DynamicProjectOptions.cmake)
 
-# Start of the project
-project(blinky LANGUAGES C CXX)
+include(${open_iot_sdk_SOURCE_DIR}/cmake/warning_flags.cmake)
+set(GCC_WARNINGS ${IOTSDK_WARNING_FLAGS} ${IOTSDK_WARNING_AS_ERRORS_FLAGS})
+set(CLANG_WARNINGS ${GCC_WARNINGS})
+
+dynamic_project_options(
+    CLANG_WARNINGS
+    ${CLANG_WARNINGS}
+    GCC_WARNINGS
+    ${GCC_WARNINGS}
+)
 
 add_subdirectory(bsp/an552 EXCLUDE_FROM_ALL)
 add_subdirectory(bsp/an386 EXCLUDE_FROM_ALL)
@@ -65,6 +93,9 @@ target_link_libraries(blinky
     mcu-driver-hal
     freertos-kernel-heap-3
     freertos-kernel
+
+    project_options
+    project_warnings
 )
 
 target_include_directories(blinky
