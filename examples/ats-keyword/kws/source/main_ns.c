@@ -11,24 +11,8 @@
 
 #include "blink_task.h"
 #include "ml_interface.h"
-
-#include "iotsdk/ip_network_api.h"
-
-/* includes for TFM */
-#include "psa/update.h"
-
-/* includes for IoT Cloud */
-#include "iot_logging_task.h"
-#include "aws_dev_mode_key_provisioning.h"
-#include "ota_provision.h"
-#include "version/application_version.h"
-
-#define IOT_LOGGING_QUEUE_SIZE 90
-
-extern int mbedtls_platform_set_calloc_free(void *(*calloc_func)(size_t, size_t), void (*free_func)(void *));
-static void *prvCalloc(size_t xNmemb, size_t xSize);
-
-extern void DEMO_RUNNER_RunDemos(void);
+#include "mbedtls/platform.h"
+#include "RTOS_config.h"
 
 /*
  * Semihosting is a mechanism that enables code running on an ARM target
@@ -46,39 +30,19 @@ __asm("  .global __ARM_use_no_argv\n");
 #endif
 
 extern uint32_t tfm_ns_interface_init(void);
-
-psa_key_handle_t xOTACodeVerifyKeyHandle = NULL;
-
-void network_state_callback(network_state_callback_event_t status)
-{
-    if (status == NETWORK_UP) {
-        printf("[INF] network up, starting demo\r\n");
-
-        if (strcmp(clientcredentialMQTT_BROKER_ENDPOINT, "endpointid.amazonaws.com") == 0) {
-            printf("[ERR] INVALID CREDENTIALS AND ENDPOINT.\r\n");
-            printf("[ERR] Set the right configuration and credentials in aws_clientcredential.h and "
-                   "aws_clientcredential_keys.h\r\n");
-            // Start the inference directly
-            ml_task_inference_start();
-        } else {
-            DEMO_RUNNER_RunDemos();
-        }
-    } else {
-        printf("[ERR] network down\r\n");
-    }
-}
-
-void print_version()
-{
-    if (GetImageVersionPSA(FWU_IMAGE_TYPE_NONSECURE) == 0) {
-        printf("Firmware version: %d.%d.%d\r\n",
-               xAppFirmwareVersion.u.x.major,
-               xAppFirmwareVersion.u.x.minor,
-               xAppFirmwareVersion.u.x.build);
-    }
-}
-
 extern void vUARTLockInit(void);
+extern int endpoint_init(void);
+
+static void *prvCalloc(size_t xNmemb, size_t xSize)
+{
+    void *pvNew = pvPortMalloc(xNmemb * xSize);
+
+    if (NULL != pvNew) {
+        memset(pvNew, 0, xNmemb * xSize);
+    }
+
+    return pvNew;
+}
 
 void main_task(void *arg)
 {
@@ -86,47 +50,31 @@ void main_task(void *arg)
 
     vUARTLockInit();
 
-    static const osThreadAttr_t ml_task_attr = {.priority = osPriorityNormal1, .stack_size = 8192};
+    static const osThreadAttr_t ml_task_attr = {.priority = osPriorityNormal, .stack_size = 8192, .name = "ML_TASK"};
     osThreadId_t ml_thread = osThreadNew(ml_task, NULL, &ml_task_attr);
     if (!ml_thread) {
         printf("Failed to create ml thread\r\n");
         return;
     }
 
-    static const osThreadAttr_t blink_attr = {.priority = osPriorityHigh};
+    static const osThreadAttr_t blink_attr = {.priority = osPriorityHigh, .name = "BLINK_TASK"};
     osThreadId_t blink_thread = osThreadNew(blink_task, NULL, &blink_attr);
     if (!blink_thread) {
         printf("Failed to create blink thread\r\n");
         return;
     }
 
-    osThreadId_t ml_mqtt_thread = osThreadNew(ml_mqtt_task, NULL, NULL);
+    static const osThreadAttr_t ml_mqtt_attr = {.priority = osPriorityNormal, .name = "ML_MQTT"};
+    osThreadId_t ml_mqtt_thread = osThreadNew(ml_mqtt_task, NULL, &ml_mqtt_attr);
     if (!ml_mqtt_thread) {
         printf("Failed to create ml mqtt thread\r\n");
         return;
     }
 
-    BaseType_t log_initialized = xLoggingTaskInitialize(0, osPriorityNormal2, IOT_LOGGING_QUEUE_SIZE);
-    if (log_initialized != pdTRUE) {
-        printf("Failed to initialize logging task [%ld]\r\n", log_initialized);
-        return;
-    }
-
     mbedtls_platform_set_calloc_free(prvCalloc, free);
-    CK_RV provisionning_status = vDevModeKeyProvisioning();
 
-    if (provisionning_status == osOK) {
-        BaseType_t ret = ota_privision_code_signing_key(&xOTACodeVerifyKeyHandle);
-        if (ret != PSA_SUCCESS) {
-            printf("ota_privision_code_signing_key failed [%d]\r\n", ret);
-        }
-    }
-
-    print_version();
-
-    osStatus_t status = start_network_task(network_state_callback, 0);
-    if (status != osOK) {
-        printf("Failed to start network task [%d]\r\n", status);
+    if (endpoint_init()) {
+        printf("Failed to start endpoint task\r\n");
     }
 
     while (1) {
@@ -145,7 +93,8 @@ int main()
         return EXIT_FAILURE;
     }
 
-    osThreadId_t connectivity_thread = osThreadNew(main_task, NULL, NULL);
+    static const osThreadAttr_t main_task_attr = {.priority = osPriorityNormal, .name = "main_task"};
+    osThreadId_t connectivity_thread = osThreadNew(main_task, NULL, &main_task_attr);
     if (!connectivity_thread) {
         printf("Failed to create connectivity thread\r\n");
         return EXIT_FAILURE;
@@ -167,15 +116,4 @@ int main()
     }
 
     return 0;
-}
-
-static void *prvCalloc(size_t xNmemb, size_t xSize)
-{
-    void *pvNew = pvPortMalloc(xNmemb * xSize);
-
-    if (NULL != pvNew) {
-        memset(pvNew, 0, xNmemb * xSize);
-    }
-
-    return pvNew;
 }

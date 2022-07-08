@@ -41,29 +41,7 @@ target_compile_definitions(lwipopts
 # Bind socket interface to implementation
 target_link_libraries(cmsis-sockets-api INTERFACE lwip-sockets)
 
-target_include_directories(coreHTTP-config
-    INTERFACE
-        ${PRJ_DIR}/bsp/aws_configs
-        ${PRJ_DIR}/bsp/aws_libraries/logging/include/
-)
-target_include_directories(coreMQTT-config
-    INTERFACE
-        ${PRJ_DIR}/bsp/aws_configs
-        ${PRJ_DIR}/bsp/aws_libraries/logging/include/
-)
-target_link_libraries(coreMQTT-config
-    INTERFACE
-        cmsis-rtos-api
-)
-target_link_libraries(coreHTTP-config
-    INTERFACE
-        cmsis-rtos-api
-)
 add_executable(kws
-    "${PRJ_DIR}/bsp/aws_libraries/abstractions/secure_sockets/lwip/iot_secure_sockets.c"
-    "${PRJ_DIR}/bsp/aws_libraries/freertos_plus/standard/crypto/src/iot_crypto.c"
-    "${PRJ_DIR}/bsp/aws_libraries/freertos_plus/standard/tls/src/iot_tls.c"
-
     # application
     "${PRJ_DIR}/kws/source/ml_interface.cc"
     "${PRJ_DIR}/kws/source/model_config.cc"
@@ -116,7 +94,6 @@ target_compile_definitions(kws
 
 target_include_directories(kws
     PRIVATE
-        ${PRJ_DIR}/bsp/aws_configs
         ${PRJ_DIR}/kws/source
         ${PRJ_DIR}/kws/include
 
@@ -146,13 +123,96 @@ add_dependencies(kws
 
 # final binary
 target_link_libraries(kws
-    AWS-extra
     startup
     tfm-ns-interface-cmsis-rtos
     cmsis-rtos-implementation
     mcu-driver-hal
     lib-bsp
+
+    project_options
+    project_warnings
 )
+
+if(${CLOUD_CLIENT} STREQUAL "AWS")
+
+    # Configure AWS libraries
+    target_include_directories(coreHTTP-config
+        INTERFACE
+            ${PRJ_DIR}/bsp/aws_configs
+            ${PRJ_DIR}/bsp/aws_libraries/logging/include/
+    )
+    target_include_directories(coreMQTT-config
+        INTERFACE
+            ${PRJ_DIR}/bsp/aws_configs
+            ${PRJ_DIR}/bsp/aws_libraries/logging/include/
+    )
+    target_link_libraries(coreMQTT-config
+        INTERFACE
+            cmsis-rtos-api
+    )
+    target_link_libraries(coreHTTP-config
+        INTERFACE
+            cmsis-rtos-api
+    )
+
+    # Complete kws
+    target_sources(kws
+        PUBLIC
+            "${PRJ_DIR}/bsp/aws_libraries/abstractions/secure_sockets/lwip/iot_secure_sockets.c"
+            "${PRJ_DIR}/bsp/aws_libraries/freertos_plus/standard/crypto/src/iot_crypto.c"
+            "${PRJ_DIR}/bsp/aws_libraries/freertos_plus/standard/tls/src/iot_tls.c"
+            source/aws_demo.c
+    )
+
+    target_include_directories(kws
+        PRIVATE
+            ${PRJ_DIR}/bsp/aws_configs
+            "${PRJ_DIR}/bsp/aws_libraries/3rdparty/mbedtls_config"
+    )
+
+    target_link_libraries(kws
+        AWS-extra
+    )
+elseif(${CLOUD_CLIENT} STREQUAL "AZURE")
+
+    # Azure SDK config
+    # Provides NTP implementation of time() function to Azure SDK platform library
+    target_link_libraries(azure-iot-sdk-platform
+        PUBLIC
+            azure-sdk-ntp-time
+    )
+
+    # Provides LwIP socket implementation to Azure SDK platform library
+    target_link_libraries(azure-iot-sdk-platform
+        PUBLIC
+            lwip-sockets
+    )
+
+    target_sources(kws
+        PUBLIC
+            source/azure_demo.c
+    )
+
+    target_include_directories(kws
+        PRIVATE
+            ${APP_CONFIG_CREDENTIALS_PATH}
+    )
+
+    # final binary
+    target_link_libraries(kws
+        mbedtls
+        tfm-ns-interface
+        lwip-sockets
+        lwipcore
+        lwipopts
+        iotsdk-ip-network-api
+        cmsis-sockets-api
+        mcu-driver-bootstrap
+        mcu-driver-hal
+        cmsis-rtos-api
+        azure-iothub-client
+    )
+endif()
 
 target_link_options(kws
     PRIVATE

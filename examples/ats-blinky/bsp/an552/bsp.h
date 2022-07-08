@@ -10,6 +10,6 @@
 #include "hal/serial_api.h"
 
 mdh_serial_t *bsp_serial_init(void);
-gpio_t *bsp_gpio_init(void);
+mdh_gpio_t *bsp_gpio_init(void);
 
 #endif

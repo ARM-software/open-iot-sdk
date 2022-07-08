@@ -55,17 +55,17 @@ static void print_task(void *argument)
 /**
  * Blinks the LED received as argument.
  *
- * @param argument A pointer to a gpio_t to be toggled on and off.
+ * @param argument A pointer to a mdh_gpio_t to be toggled on and off.
  */
 static void blinky_task(void *argument)
 {
-    gpio_t *led = (gpio_t *)argument;
+    mdh_gpio_t *led = (mdh_gpio_t *)argument;
 
     const TickType_t xDelay = 1000 / portTICK_PERIOD_MS;
     TickType_t now = xTaskGetTickCount();
 
     while (true) {
-        gpio_write(led, 1 - gpio_read(led));
+        mdh_gpio_write(led, 1 - mdh_gpio_read(led));
         xTaskDelayUntil(&now, xDelay);
     }
 }
@@ -74,7 +74,7 @@ int main()
 {
     gs_serial_mutex = xSemaphoreCreateMutex();
     gs_serial_output = bsp_serial_init();
-    gpio_t *led = bsp_gpio_init();
+    mdh_gpio_t *led = bsp_gpio_init();
     serial_print("Inside main()\r\n");
 
     TaskHandle_t task_id_a;

@@ -2,17 +2,17 @@
 # See https://pre-commit.com/hooks.html for more hooks
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v3.2.0
+    rev: v4.3.0
     hooks:
     -   id: trailing-whitespace
     -   id: end-of-file-fixer
     -   id: check-added-large-files
 -   repo: https://github.com/pre-commit/mirrors-clang-format
-    rev: v13.0.0
+    rev: v14.0.4
     hooks:
-    -   id: clang-format
--   repo: https://git.gitlab.oss.arm.com/engineering/iot-m-sw/open-iot-sdk/tools/developer-tools.git
-    rev: c67e53e3d69c84be73b6027d5754eaf8950144e5
+    -   id: clang-format -i
+-   repo: https://git.gitlab.arm.com/iot/open-iot-sdk/tools/developer-tools.git
+    rev: 777223b9a7d574cfa773f845ea4cad2f8d677123
     hooks:
     -   id: cppcheck
     -   id: banned-api
