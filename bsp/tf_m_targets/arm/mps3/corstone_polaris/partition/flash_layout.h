@@ -79,7 +79,7 @@
  * swapping.
  */
 #define FLASH_AREA_BL2_OFFSET      (0x0)
-#define FLASH_AREA_BL2_SIZE        (ITCM_SIZE) /* 256 KB */
+#define FLASH_AREA_BL2_SIZE        (SRAM_SIZE) /* 2MB */
 
 #if !defined(MCUBOOT_IMAGE_NUMBER) || (MCUBOOT_IMAGE_NUMBER == 1)
 /* Secure + Non-secure image primary slot */
