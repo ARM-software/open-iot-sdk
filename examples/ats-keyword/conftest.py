@@ -16,12 +16,14 @@
 import pytest
 import os
 import subprocess
+from functools import reduce
 
 
 def pytest_addoption(parser):
     parser.addoption("--build-path", action="store", default="build")
     parser.addoption("--credentials-path", action="store", default="credentials")
-    parser.addoption("--avh", action="store", default="/arm/fvp/VHT_Corstone_SSE-300_Ethos-U55")
+    parser.addoption("--avh", action="store", default="/opt/VHT/VHT_Corstone_SSE-300_Ethos-U55")
+    parser.addoption("--avh-options", action="store", default="")
 
 
 @pytest.fixture()
@@ -46,8 +48,25 @@ def vsi_script_path():
     yield os.path.dirname(os.path.abspath(__file__)) + '/lib/VHT/interface/audio/python'
 
 
+@pytest.fixture
+def fvp_options(pytestconfig):
+    raw_options = pytestconfig.getoption("--avh-options")
+
+    if raw_options == "":
+        return []
+
+    options = raw_options.split(",")
+
+    def options_builder(options, opt):
+        options.append("-C")
+        options.append(opt)
+        return options
+
+    return reduce(options_builder, options, [])
+
+
 @pytest.fixture(scope="function")
-def fvp(fvp_path, build_path, vsi_script_path, binary_path):
+def fvp(fvp_path, build_path, vsi_script_path, binary_path, fvp_options):
     # Fixture of the FVP, when it returns, the FVP is started and
     # traces are accessible through the .stdout of the object returned.
     # When the test is terminated, the FVP subprocess is closed.
@@ -67,13 +86,10 @@ def fvp(fvp_path, build_path, vsi_script_path, binary_path):
         '-C', 'mps3_board.smsc_91c111.enabled=1',
         '-C', 'mps3_board.hostbridge.userNetworking=1',
         '-C', 'mps3_board.DISABLE_GATING=1',
-        '-C', 'cpu0.CFGDTCMSZ=10',
-        '-C', 'cpu0.CFGITCMSZ=10',
-        '-C', 'cpu0.INITNSVTOR=0x00000000',
-        '-C', 'cpu0.INITSVTOR=0x10000000',
         '-V', f'{vsi_script_path}'
     ]
 
+    cmdline.extend(fvp_options)
     proc = subprocess.Popen(cmdline, stdout=subprocess.PIPE)
     yield proc
     proc.terminate()

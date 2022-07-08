@@ -51,15 +51,15 @@ case "$1" in
         "$SCRIPTS/bootstrap.sh"
     ;;
     build|b)
-        _assert "$2" "blinky|kws"
+        _assert "$2" "blinky|kws|mlia"
         "$SCRIPTS/build.sh" "${@:2}"
     ;;
     run|r)
-        _assert "$2" "blinky|kws"
+        _assert "$2" "blinky|kws|mlia"
         "$SCRIPTS/run.sh" "${@:2}"
     ;;
     build-n-run|br)
-        _assert "$2" "blinky|kws"
+        _assert "$2" "blinky|kws|mlia"
         "$SCRIPTS/build.sh" "${@:2}" && "$SCRIPTS/run.sh" "${@:2}"
     ;;
     pack|p)

@@ -48,17 +48,7 @@ if(NS)
     )
     target_link_libraries(CMSIS_5_tfm_ns
         INTERFACE
-        $<$<STREQUAL:${CONFIG_TFM_FP},hard>:CMSIS_5_RTX_V8MMFN>
-        $<$<STREQUAL:${CONFIG_TFM_FP},soft>:CMSIS_5_RTX_V8MMN>
-    )
-
-    target_compile_options(tfm_ns
-        PUBLIC
-            ${COMPILER_CP_FLAG}
-    )
-    target_link_options(tfm_ns
-        PUBLIC
-            ${LINKER_CP_OPTION}
+            CMSIS_5_RTX_V8MMN
     )
 endif()
 

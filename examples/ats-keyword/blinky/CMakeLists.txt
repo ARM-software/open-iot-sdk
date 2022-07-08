@@ -17,6 +17,9 @@ target_link_libraries(blinky
 
     lib-bsp
     startup
+
+    project_options
+    project_warnings
 )
 
 # Copy the result of TF-M build in the top level build directory

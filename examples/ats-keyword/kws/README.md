@@ -1,8 +1,16 @@
 # KWS Example
 
+The Keyword Spotting application demonstrates Machine Learning running in a [TrustedFirmware-M](https://www.trustedfirmware.org/projects/tf-m/) controlled secure/non-secure partition configuration utilizing the [Ethos-U55](https://www.arm.com/products/silicon-ip-cpu/ethos/ethos-u55) microNPU on the following Arm platforms:
+* Corstone-300
+* Corstone-310
+
+The ML application executes within the non-secure side of the Armv8-M processor coordinating data flow to and from the [Ethos-U55](https://www.arm.com/products/silicon-ip-cpu/ethos/ethos-u55).
+
+In this folder you will find all the source code needed that implements the Keyword spotting application.
+
 ## Presentation
 
-The KWS example demonstrates machine learning running on the non-secure side on Corstone 300.
+The KWS example demonstrates machine learning running on the non-secure side on Corstone-300.
 
 Depending on the keyword recognized, LEDs of the system are turned ON or OFF:
 
@@ -24,7 +32,7 @@ Depending on the keyword recognized, LEDs of the system are turned ON or OFF:
 
 The sixth LED blinks at a regular interval to indicate that the system is alive and waits for input.
 
-## Connection to AWS cloud
+## Connection to AWS cloud
 
 The system can be connected to the AWS cloud and broadcast the ML inference results
 to the cloud in an MQTT topic or receive OTA update.
