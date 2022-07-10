@@ -26,9 +26,8 @@ Follow these simple steps to build and execute the code example's application wi
 
 * [Launch Arm Virtual Hardware system](#launch-arm-virtual-hardware-instance)
 * [Build and execute](#build-and-execute-the-application)
-* [Setting up AWS Cloud connectivity](#setting-up-aws-connectivity)
-* [Enabling OTA firmware update from the AWS Cloud](#ota-firmware-update)
-* [Setting up Azure Cloud connectivity](#setting-up-azure-connectivity)
+* [AWS Cloud connectivity setup and execution](#setting-up-aws-connectivity)
+* [Azure Cloud connectivity setup and execution](#setting-up-azure-connectivity)
 * [Terminating Arm Virtual Hardware](#terminate-arm-virtual-hardware-instance)
 
 # Launch Arm Virtual Hardware Instance
@@ -61,7 +60,7 @@ To utilize the Arm Virtual Hardware, you will need to create an [AWS Account](ht
      * **Step 3: Choose an Instance Type** - Select one of the instance types from the list.
         * We recommend the **c5.large**.
         * **Important:** Charges accrue while the instance is running and to a lesser degree when stopped.
-        * Terminating the instance stops any charges from occurring.
+        * Terminating the instance stops nearly all charges from occurring.
 
      * **Step 4: Key pair (login)**
        * To ensure easy connection when using SSH from a local terminal, it is recommended to create a key pair at this time.
@@ -76,7 +75,7 @@ To utilize the Arm Virtual Hardware, you will need to create an [AWS Account](ht
             chmod 400 MyKeyPair.pem
         ```
 
-     * **Step 5: Configure storage** - To ensure enough disk drive space to contain the entire build image.  Set the amount of storage to "1x **24** GiB".
+     * **Step 5: Configure storage** - To ensure enough disk drive space to contain the entire build image.  Set the amount of storage to at least "1x **24** GiB".
 
      * **Final Step:** From here you may select **Review and Launch** to move directly to the launch page or continue to configure instance details if you need to set any custom settings for this instance.
 
@@ -436,26 +435,54 @@ The instructions below use the keyword spotting name, kws, as an example.  Repla
 1. Follow the instructions at: [Create an Amazon S3 bucket to store your update](https://docs.aws.amazon.com/freertos/latest/userguide/dg-ota-bucket.html)
   * Use the default options wherever you have a choice.
   * For simplicity, use the same region for the bucket as where your Instance is located.
-2. Follow the instructions at: [Create an OTA Update service role](https://docs.aws.amazon.com/freertos/latest/userguide/create-service-role.html)
-3. Follow the instructions at: [Create an OTA user policy](https://docs.aws.amazon.com/freertos/latest/userguide/create-ota-user-policy.html)
-4. Go to AWS IoT web interface and choose **Manage** and then **Jobs**
-5. Click the create job button and select **Create FreeRTOS OTA update job**
-6. Give it a name and click next
-7. Select the device to update (the Thing you created in earlier steps)
-8. Select `MQTT` transport only
-9. Select **Use my custom signed file**
-10. Select upload new file and select the signed update binary (`build/kws/kws_signed_update.bin`)
-11. Select the S3 bucket you created in step 1. to upload the binary to
-12. Paste the signature string that is echoed during the build of the example (it is also available in `build/kws/update-signature.txt`).
-13. Select `SHA-256` and `RSA` algorithms.
-14. For **Path name of code signing certificate on device** put in `0` (the path is not used)
-15. For **Path name of file on device** put in `non_secure image`
-16. As the role, select the OTA role you created in step 2.
-17. Click next
-18. Create an ID for you Job
-19. Add a description
-20. **Job type**, select *Your job will complete after deploying to the selected devices/groups (snapshot).*
-21. Click next, your update job is ready and running - next time your application connects it will perform the update.
+  * To upload binaries from an EC2 instance you will need to do the following:
+    * Create an IAM role with S3 write access or admin access
+      * Login to your **AWS Management Console**,  go to **IAM** then click on **Roles**
+      * Select `AWS service`, then click `EC2` and finally click **Next**
+      * Click on **Create Role**
+      * Search for the policy: `AmazonS3FullAccess`, select it.
+      * Add a descriptive name: `S3FullAccessEC2`
+      * Add the following Tag:  `Policy:S3`
+      * Select Create
+    * Map the IAM role to an EC2 instance
+      * Go to **EC2** then click on **Instances**
+      * Choose the EC2 instance you want to assign this IAM role to.
+      * Click on **Actions > Security> Modify IAM Role**
+      * Search for the IAM Role we have created in the previous step and select it and hit Save.
+    * Install AWS CLI in EC2 instance (Linux Version)
+      * Click [here](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) for instructions.
+2. Upload binary file for OTA process (EC2 to S3 process)
+   1. This process shows how to upload a file for this application running in an EC2 instance to an S3 bucket
+   2. In the EC2 console where you built the application, copy the file from EC2 to the S3 bucket you create earlier.
+
+      `aws s3 cp build/kws/kws_signed_update.bin s3://<S3BucketName>`
+
+      **\<S3BucketName\>** is the name of the bucket you just created.
+
+3. Follow the instructions at: [Create an OTA Update service role](https://docs.aws.amazon.com/freertos/latest/userguide/create-service-role.html)
+4. Follow the instructions at: [Create an OTA user policy](https://docs.aws.amazon.com/freertos/latest/userguide/create-ota-user-policy.html)
+5. Go to AWS IoT web interface and choose **Manage** and then **Jobs**
+   * Click the create job button and select **Create FreeRTOS OTA update job**
+   * Give it a name and click next
+   * Select the device to update (the Thing you created in earlier steps)
+   * Select `MQTT` transport only
+   * Select **Use my custom signed file**
+   *  Select upload new file and select the signed update binary (`kws_signed_update.bin`)
+   *  Select the S3 bucket you created in step 1. to upload the binary to
+   *  Paste the signature string that is echoed during the build of the example, it is also available in `update-signature.txt`).
+
+      `cat build/kws/update-signature.txt`
+
+   *  Select `SHA-256` and `RSA` algorithms.
+   * For **Path name of code signing certificate on device** put in `0` (the path is not used)
+   * For **Path name of file on device** put in `non_secure image`
+   * As the role, select the OTA role you created in step 2.
+   * Click next
+   * Create an ID for you Job
+   * Add a description
+   * **Job type**, select *Your job will complete after deploying to the selected devices/groups (snapshot).*
+   * Click next, your update job is ready and running - next time your application connects it will perform the update.
+6.  Restart the application
 
 <br>
 
