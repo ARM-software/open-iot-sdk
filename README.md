@@ -22,6 +22,8 @@ The goal of this repository is to provide you the developer with as many softwar
 
 The Total-Solutions applications you have access to here, when built, will pull down only the required software components that are needed thus saving time and hard disk space. To further explore the next level of source code, you can go to the home of the [GitLab:Open-IoT-SDK](https://gitlab.arm.com/iot/open-iot-sdk) framework.
 
+To get started quickly... Keep reading!
+
 <br>
 
 # Arm Total Solutions
@@ -35,14 +37,16 @@ The Total-Solutions applications you have access to here, when built, will pull 
 * Application specific reference code 
 * 3rd Party support from the world’s largest IoT ecosystem
 
-THe [FreeRTOS](https://github.com/FreeRTOS) kernel is already included in all application's and over time more RTOS kernel abstractions will be added demonstrating the usability of the Open-CMSIS-CDI RTOS interfaces.
+The [FreeRTOS](https://github.com/FreeRTOS) kernel is already included in all application's and over time more RTOS kernel abstractions will be added demonstrating the usability of the Open-CMSIS-CDI RTOS interfaces.
 
 Refer to our initial Total Solutions below, ATS-Keyword and ATS-Blinky for more information.   
 
 <br>
 
 ## ATS-Keyword
-This repo contains Arm's first [IoT Total Solution](https://www.arm.com/solutions/iot/total-solutions-iot), "Keyword Detection", that runs on Arm's newer platforms and processors from Armv8-M onwards.  It provides general-purpose compute and ML workload use-cases, including an ML-based keyword-detection / keyword-spotting example that leverages the DS-CNN model from the [Arm Model Zoo](https://github.com/ARM-software/ML-zoo). This application also demonstrates various Cloud-connected functionality, such as Over-the-Air update and Security concepts via [TrustedFirmware-M](https://www.trustedfirmware.org/projects/tf-m/).  The source code for this project is located within the [ATS-Keyword](./examples/ats-keyword) folder.
+This repo contains Arm's first [IoT Total Solution](https://www.arm.com/solutions/iot/total-solutions-iot), "Keyword Detection", that runs on Arm's newer platforms and processors from Armv8-M onwards.  It provides general-purpose compute and ML workload use-cases, including an ML-based keyword-detection / keyword-spotting example that leverages the DS-CNN model from the [Arm Model Zoo](https://github.com/ARM-software/ML-zoo). This application also demonstrates various Cloud-connected functionality, such as Over-the-Air update and Security concepts via [TrustedFirmware-M](https://www.trustedfirmware.org/projects/tf-m/).
+
+To experience and evaluate the Keyword Detection Total Solution, proceed to the [ATS-Keyword](./examples/ats-keyword) folder.
 
 <br>
 

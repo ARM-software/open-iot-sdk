@@ -401,7 +401,6 @@ vi aws_clientcredential_keys.h
 
 Save all files and rebuild the application.
 
-
 ## Observing MQTT connectivity
 
 To see messages being sent by the application:
@@ -415,7 +414,6 @@ To see messages being sent by the application:
 8. In the **MQTT payload display** combo box select `Display payloads as strings (more accurate)`
 9. Click the **Subscribe** button. The messages will be shown below within this same page.
    1.  Switch back to the console and run the application now
-
 
 # OTA firmware update
 
