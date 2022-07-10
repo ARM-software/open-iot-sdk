@@ -251,9 +251,14 @@ The `run` command can take the `--path` switch to run a particular build. It use
 This is equivalent to:
 
 ```sh
-./ats.sh run kws --path build
+./ats.sh run kws --target Corstone-300 --path build
 ```
 
+To build for Corstone-310 use `--target Corstone-310`
+
+For details on the expected console output when the 'kws' running, cleck [here](./kws).
+
+To terminate the execution, press **Ctrl-C** within the console.  For CI systems this is handled via the scripts.
 ## Integration tests
 
 Launch the kws integration tests:
@@ -354,6 +359,14 @@ Now that you have created an AWS Thing and attached the certificates and policie
 
 Within the application directory that you are using, edit the `bsp/default_credentials/aws_clientcredential.h` file and set values for specified user defines called out below.
 
+```sh
+cd bsp/default_credentials
+```
+
+```sh
+vi aws_clientcredential.h
+```
+
 `clientcredentialMQTT_BROKER_ENDPOINT`
 
 * Set this to the Device data endpoint name of your amazon account.
@@ -370,6 +383,10 @@ Save and close the file.
 
 Next insert the keys that are in the certificates you have downloaded when you created the thing. Edit the file `bsp/default_credentials/aws_clientcredential_keys.h` replacing the existing keys with yours.
 
+```sh
+vi aws_clientcredential_keys.h
+```
+
 `keyCLIENT_CERTIFICATE_PEM`
 
 * Replace with contents from `<your-thing-certificate-unique-string>-certificate.pem.crt`.
@@ -384,6 +401,7 @@ Next insert the keys that are in the certificates you have downloaded when you c
 
 Save all files and rebuild the application.
 
+
 ## Observing MQTT connectivity
 
 To see messages being sent by the application:
@@ -396,6 +414,8 @@ To see messages being sent by the application:
    * e.g. if you thing name is MyThing then it's `MyThing/ml/inference`
 8. In the **MQTT payload display** combo box select `Display payloads as strings (more accurate)`
 9. Click the **Subscribe** button. The messages will be shown below within this same page.
+   1.  Switch back to the console and run the application now
+
 
 # OTA firmware update
 
@@ -409,7 +429,7 @@ If you want to add other changes you should copy the original binary elsewhere b
 
 For example, the updated binary is placed in `build/kws/kws_signed_update.bin`. The updated binary is already signed and it is the file you will need to upload to the Amazon S3 bucket in the next section.
 
-Upon completion of the build and signing process the <ins>signature string will be echoed to the terminal</ins>. This will be needed in the next step.
+Upon completion of the build and signing process the <ins>signature string will be echoed to the terminal</ins>. This will be needed in the next step. If you dont have the last build output available, go ahead and rebuild now.  Look at the end of the build output for the following string <Use this base 64 encoded signature in OTA job>. The text after that label is what is needed below.
 
 ## Creating AWS IoT firmware update job
 
