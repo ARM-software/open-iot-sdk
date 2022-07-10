@@ -5,6 +5,7 @@
 
 #include "bsp.h"
 #include "mps3_uart.h"
+#include "mps3_io.h"
 
 mdh_serial_t *bsp_serial_init(void)
 {
@@ -13,9 +14,11 @@ mdh_serial_t *bsp_serial_init(void)
     return &uart->serial;
 }
 
-gpio_t *bsp_gpio_init(void)
+mdh_gpio_t *bsp_gpio_init(void)
 {
-    static gpio_t led = {0};
-    gpio_init_out(&led, USERLED1);
-    return &led;
+    static mps3_io_t led;
+    mps3_io_init(&led, &MPS3_IO_DEV_NS, USERLED1);
+
+    mdh_gpio_set_direction(&(led.gpio), MDH_GPIO_DIRECTION_OUT);
+    return &led.gpio;
 }

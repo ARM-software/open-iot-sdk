@@ -23,7 +23,7 @@ target_include_directories(PKCS11
         "${aws-iot-device-sdk_SOURCE_DIR}/libraries/standard/corePKCS11/source/dependency/3rdparty/pkcs11"
         "${PRJ_DIR}/bsp/aws_libraries/3rdparty/mbedtls_config"
         "${PRJ_DIR}/bsp/aws_libraries/abstractions/pkcs11/corePKCS11/source/dependency/3rdparty/mbedtls_utils"
-        ${AWS_CONFIG_CREDENTIALS_PATH}
+        ${APP_CONFIG_CREDENTIALS_PATH}
     PRIVATE
         "${PRJ_DIR}/bsp/aws_libraries/3rdparty/pkcs11"
         "${PRJ_DIR}/bsp/aws_libraries/logging/include"

@@ -14,48 +14,39 @@
 #  limitations under the License.
 
 from timeit import default_timer as timer
-from pytest import fixture
-from aws_test_util import Flags, create_aws_resources, cleanup_aws_resources
 
 
-@fixture(scope='function')
-def aws_resources(build_path, credentials_path):
-    flags = Flags(build_path, credentials_path)
-    flags = create_aws_resources(flags)
-    try:
-        # Caller won't actually do anything with this, but we have to yield something.
-        yield flags
-    finally:
-        cleanup_aws_resources(flags)
-
-
-def test_ota(aws_resources, fvp):
-    # Traces expected in the output
+def test_azure(fvp):
+    # Traces expected in the output
     expectations = [
         'Starting bootloader',
         'Booting TF-M v1.6.0',
         'Starting scheduler from ns main',
-        'Write certificate...',
-        'Firmware version: 0.0.1',
-        '[INF] network up, starting demo',
-        'Found valid event handler for state transition: State=[WaitingForFileBlock], Event=[ReceivedFileBlock]',
-        'Received final block of the update',
-        'Image upgrade secondary slot -> primary slot',
-        'Firmware version: 0.0.2',
-    ]
-
-    fails = [
-        'Failed to provision device private key',
-        'Failed job document content check',
-        'Failed to execute state transition handler'
+        'Ethos-U55 device initialised',
+        'ML interface initialised',
+        'ML_HEARD_ON',
+        'Sending message on',
+        'Ack message',
+        'ML_HEARD_OFF',
+        'Sending message off',
+        'Ack message',
+        'ML UNKNOWN',
+        'Sending message _unknown_',
+        'Ack message',
+        'ML_HEARD_GO',
+        'Sending message go',
+        'Ack message',
+        'ML UNKNOWN',
+        'Sending message _unknown_',
+        'Ack message',
     ]
 
     index = 0
     start = timer()
     current_time = timer()
 
-    # Timeout for the test is 15 minutes
-    while (current_time - start) < (15 * 60):
+    # Timeout for the test is 10 minutes
+    while (current_time - start) < (10 * 60):
         line = fvp.stdout.readline()
         if not line:
             break
@@ -66,8 +57,6 @@ def test_ota(aws_resources, fvp):
             index += 1
             if index == len(expectations):
                 break
-        for x in fails:
-            assert x not in line
         current_time = timer()
 
     assert index == len(expectations)
