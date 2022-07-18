@@ -1,9 +1,9 @@
 # Overview
-Welcome to Arm's Open-IoT-SDK, where you have access to a wide variety of IoT targeted software applications and components ready to run on Arm based platforms.  This software framework accelerates intelligent, connected IoT product design by allowing developers to focus on what really matters – innovation and differentiation. 
+Welcome to Arm's Open-IoT-SDK, where you have access to a wide variety of IoT targeted software applications and components ready to run on Arm based platforms.  This software framework accelerates intelligent, connected IoT product design by allowing developers to focus on what really matters - innovation and differentiation.
 
-The Open-IoT-SDK contains Total-Solutions applications that allow the user to explore and evaluate not only Arm IP, and the [Open-CMSIS-CDI API's](https://github.com/Open-CMSIS-Pack/open-cmsis-cdi-spec), but several other Arm tools as well.  It is strongly recommended to explore these pages thoroughly as you will find information on the code itself, the different ways to build and execute the applications as well as the different tools that are available to you, such as Arm Virtual Hardware. 
+The Open-IoT-SDK contains Total-Solutions applications that allow the user to explore and evaluate not only Arm IP, and the [Open-CMSIS-CDI API's](https://github.com/Open-CMSIS-Pack/open-cmsis-cdi-spec), but several other Arm tools as well.  It is strongly recommended to explore these pages thoroughly as you will find information on the code itself, the different ways to build and execute the applications as well as the different tools that are available to you, such as Arm Virtual Hardware.
 
-The Open-IoT-SDK located within **GitHub** is a read-only downstream Arm® project mirror of the upstream project located in [GitLab:Open-IoT-SDK](https://gitlab.arm.com/iot/open-iot-sdk/examples).  Any enhancement requests or bugs identified for this repository will need to be submitted to the upstream [GitLab:Open-IoT-SDK](https://gitlab.arm.com/iot/open-iot-sdk/examples) project.”
+The Open-IoT-SDK located within **GitHub** is a read-only downstream Arm project mirror of the upstream project located in [GitLab:Open-IoT-SDK](https://gitlab.arm.com/iot/open-iot-sdk/examples).  Any enhancement requests or bugs identified for this repository will need to be submitted to the upstream [GitLab:Open-IoT-SDK](https://gitlab.arm.com/iot/open-iot-sdk/examples) project.
 
 Below is a list of software topics to explore and utilize:
 
@@ -18,7 +18,7 @@ Below is a list of software topics to explore and utilize:
 * [More applications highlighting ARM Hardware-IP](#other-resources)
 * [Future Enhancements](#future-enhancements)
 
-The goal of this repository is to provide you the developer with as many software choices as possible to run on Arm IP without downloading a huge monolithic codebase. This repository utilizes a multi-repository architecture stored in various locations across the internet. All the source code located in this GitHub repository is a subset of repositories stored and maintained within the [GitLab:Open-IoT-SDK](https://gitlab.arm.com/iot/open-iot-sdk) framework. 
+The goal of this repository is to provide you the developer with as many software choices as possible to run on Arm IP without downloading a huge monolithic codebase. This repository utilizes a multi-repository architecture stored in various locations across the internet. All the source code located in this GitHub repository is a subset of repositories stored and maintained within the [GitLab:Open-IoT-SDK](https://gitlab.arm.com/iot/open-iot-sdk) framework.
 
 The Total-Solutions applications you have access to here, when built, will pull down only the required software components that are needed thus saving time and hard disk space. To further explore the next level of source code, you can go to the home of the [GitLab:Open-IoT-SDK](https://gitlab.arm.com/iot/open-iot-sdk) framework.
 
@@ -34,12 +34,12 @@ To get started quickly... Keep reading!
 * Real-time OS support
 * Machine learning (ML) models
 * Advanced tools such as Arm Virtual Hardware
-* Application specific reference code 
-* 3rd Party support from the world’s largest IoT ecosystem
+* Application specific reference code
+* 3rd Party support from the world's largest IoT ecosystem
 
 The [FreeRTOS](https://github.com/FreeRTOS) kernel is already included in all application's and over time more RTOS kernel abstractions will be added demonstrating the usability of the Open-CMSIS-CDI RTOS interfaces.
 
-Refer to our initial Total Solutions below, ATS-Keyword and ATS-Blinky for more information.   
+Refer to our initial Total Solutions below, ATS-Keyword and ATS-Blinky for more information.
 
 <br>
 
@@ -80,7 +80,7 @@ If you are more of a **Do-It-Yourself** type of developer, wanting to know how t
 # Open-CMSIS-CDI
 The Open-CMSIS-CDI standard is one the of the foundations of IoT Total Solutions and is designed to solve common industry problems, reduce barriers to deployment and enable scale across the Arm Cortex-M ecosystem. Open-CMSIS-CDI will define a common set of interfaces targeting cloud-service-to-device functionality to enable major IoT stacks to run across as broad a range of Arm-based MCUs as possible, with minimal porting effort.
 
-Open IoT-SDK is the reference implementation of the Centauri standards, [Open-CMSIS-CDI](https://github.com/Open-CMSIS-Pack/open-cmsis-cdi-spec) and [PSA](https://www.psacertified.org/). It is a software framework that demonstrates the capabilities that a Centauri-compliant device should have, including all the relevant APIs. This reference implementation provides a foundation for developers to build products upon in a scalable, consistent manner. 
+Open IoT-SDK is the reference implementation of the Centauri standards, [Open-CMSIS-CDI](https://github.com/Open-CMSIS-Pack/open-cmsis-cdi-spec) and [PSA](https://www.psacertified.org/). It is a software framework that demonstrates the capabilities that a Centauri-compliant device should have, including all the relevant APIs. This reference implementation provides a foundation for developers to build products upon in a scalable, consistent manner.
 
 Click [here](https://github.com/Open-CMSIS-Pack/open-cmsis-cdi-spec) learn more.
 
@@ -99,7 +99,7 @@ Each Total Solution application has been built and verified using a continuous i
 <br>
 
 # Arm Virtual Hardware
-Arm Virtual Hardware (AVH) helps software developers build Arm-based intelligent applications faster.  AVH delivers models of Arm-based processors, systems, and boards for application developers and SoC designers to build and test software without hardware. It runs as a simple application in the cloud and is ideal for testing using modern agile software development practices such as continuous integration and continuous development CI/CD (DevOps) workflows. 
+Arm Virtual Hardware (AVH) helps software developers build Arm-based intelligent applications faster.  AVH delivers models of Arm-based processors, systems, and boards for application developers and SoC designers to build and test software without hardware. It runs as a simple application in the cloud and is ideal for testing using modern agile software development practices such as continuous integration and continuous development CI/CD (DevOps) workflows.
 
 Click [here](https://www.arm.com/products/development-tools/simulation/virtual-hardware) to learn more.
 
