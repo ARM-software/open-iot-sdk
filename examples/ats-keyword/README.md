@@ -60,7 +60,8 @@ To utilize the Arm Virtual Hardware, you will need to create an [AWS Account](ht
      * **Step 3: Choose an Instance Type** - Select one of the instance types from the list.
         * We recommend the **c5.large**.
         * **Important:** Charges accrue while the instance is running and to a lesser degree when stopped.
-        * Terminating the instance stops nearly all charges from occurring.
+        * Terminating the instance stops all charges from occurring.
+          * For more information see the [AWS Instance Termination](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/terminating-instances.html) page.
 
      * **Step 4: Key pair (login)**
        * To ensure easy connection when using SSH from a local terminal, it is recommended to create a key pair at this time.
@@ -537,6 +538,8 @@ Execute the following script located in the application repository.
 ```sh
 ./scripts/vht_cli.py -k MyKeyPair stop
 ```
+
+For more information see the [AWS Instance Termination](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/terminating-instances.html) page.
 
 # Source code overview
 
