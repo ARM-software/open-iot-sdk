@@ -41,7 +41,7 @@ target_include_directories(${LIB_NAME}
         ${TFM_PLATFORM_TARGET_DIR}/arm/mps3/an547/services/src
         ${TFM_PLATFORM_TARGET_DIR}/arm/mps3/common
         ${PRJ_DIR}/bsp/aws_configs
-        ${AWS_CONFIG_CREDENTIALS_PATH}
+        ${APP_CONFIG_CREDENTIALS_PATH}
         ${PRJ_DIR}/bsp/aws_libraries/3rdparty/jsmn
         ${PRJ_DIR}/bsp/aws_libraries/3rdparty/mbedtls_config
         ${PRJ_DIR}/bsp/aws_libraries/3rdparty/mbedtls_utils

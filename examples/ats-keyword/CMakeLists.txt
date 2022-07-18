@@ -6,6 +6,17 @@ cmake_minimum_required(VERSION 3.21)
 include(ExternalProject)
 include(FetchContent)
 
+# CMake processes toolchain file during first call to project(), so it needs to exist first
+FetchContent_Declare(iotsdk-toolchains
+    GIT_REPOSITORY  https://git.gitlab.arm.com/iot/open-iot-sdk/toolchain.git
+    GIT_TAG         126d2092a2325c77fdf36043e931293c62e2ad29
+    SOURCE_DIR      ${CMAKE_BINARY_DIR}/toolchains
+)
+FetchContent_MakeAvailable(iotsdk-toolchains)
+
+# Start of the project
+project(keyword LANGUAGES C CXX)
+
 # Declare root and other build paths
 set(PRJ_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 
@@ -30,44 +41,11 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "The build type" FORCE)
 endif()
 
-
-# Override TF-M version
-FetchContent_Declare(
-    tf-m
-    GIT_REPOSITORY  https://git.trustedfirmware.org/TF-M/trusted-firmware-m.git
-    # Note: AN552 currently requires an unreleased version of TF-M.
-    # To be able to checkout an untagged commit, a full git clone is
-    # needed and GIT_SHALLOW is disabled.
-    GIT_TAG         TF-Mv1.6.0
-    GIT_PROGRESS    ON
-    # Note: This prevents FetchContent_MakeAvailable() from calling
-    # add_subdirectory() on the fetched repository. TF-M needs a
-    # standalone build because it relies on functions defined in its
-    # own toolchain files and contains paths that reference the
-    # top-level project instead of its own project.
-    SOURCE_SUBDIR   NONE
-)
-
-FetchContent_Declare(iotsdk-toolchains
-    GIT_REPOSITORY  https://git.gitlab.arm.com/iot/open-iot-sdk/toolchain.git
-    GIT_TAG         126d2092a2325c77fdf36043e931293c62e2ad29
-    SOURCE_DIR      ${CMAKE_BINARY_DIR}/toolchains
-)
-
-# Override MCU driver HAL
-FetchContent_Declare(
-  mcu-driver-reference-platforms-for-arm
-  GIT_REPOSITORY https://git.gitlab.arm.com/iot/open-iot-sdk/mcu-driver-hal/mcu-driver-reference-platforms-for-arm.git
-  GIT_TAG        9b7696596ca1c0f380e77f3d7c5de150635e340e
-  GIT_PROGRESS   ON
-)
-
-
 # Declare the Open IoT SDK
 FetchContent_Declare(
   open_iot_sdk
   GIT_REPOSITORY https://git.gitlab.arm.com/iot/open-iot-sdk/sdk.git
-  GIT_TAG        dc62ef0bb0bc39f1ed67c33758e36482d3c6b2ff
+  GIT_TAG        bf11e35384e87f055ba2932f03eab09253186dcb
 )
 
 # Declare the Open IoT SDK configuration flags
@@ -86,8 +64,13 @@ set(TFM_PLATFORM "${CMAKE_CURRENT_SOURCE_DIR}/${TFM_PLATFORM_LOCAL_PATH}")
 set(TFM_PSA_API OFF)
 set(TFM_PARTITION_FIRMWARE_UPDATE ON)
 set(TFM_LIB_MODEL ON)
+set(CONFIG_TFM_ENABLE_FPU ON)
 set(IOTSDK_MBEDTLS ON)
-set(IOTSDK_AWS_CLIENT ON)
+if(${CLOUD_CLIENT} STREQUAL "AWS")
+  set(IOTSDK_AWS_CLIENT ON)
+elseif(${CLOUD_CLIENT} STREQUAL "AZURE")
+  set(IOTSDK_AZURE_SDK ON)
+endif()
 set(IOTSDK_LWIP ON)
 set(IOTSDK_LWIP_SOCKETS ON)
 set(IOTSDK_IP_NETWORK ON)
@@ -95,7 +78,7 @@ set(IOTSDK_LWIP_CMSIS_IP_NETWORK ON)
 set(IOTSDK_EXAMPLES OFF)
 
 # Extra arguments for TF-M and ML
-set(TFM_CMAKE_ARGS "-DNS=ON;-DPLATFORM_DEFAULT_UART_STDOUT=ON;-DMCUBOOT_SIGNATURE_KEY_LEN=2048;-DCONFIG_TFM_FP=hard;-DCONFIG_TFM_FP_ARCH=fpv5-sp-d16;TFM_SYSTEM_FP=ON;-DTFM_PARTITION_AUDIT_LOG=ON;-DITS_MAX_ASSET_SIZE=1300;-DCRYPTO_ENGINE_BUF_SIZE=0x8000;-DMCUBOOT_LOG_LEVEL=INFO;-DTFM_SPM_LOG_LEVEL=TFM_SPM_LOG_LEVEL_INFO")
+set(TFM_CMAKE_ARGS "-DNS=ON;-DPLATFORM_DEFAULT_UART_STDOUT=ON;-DMCUBOOT_SIGNATURE_KEY_LEN=2048;-DTFM_PARTITION_AUDIT_LOG=ON;-DITS_MAX_ASSET_SIZE=1300;-DCRYPTO_ENGINE_BUF_SIZE=0x8000;-DMCUBOOT_LOG_LEVEL=INFO;-DTFM_SPM_LOG_LEVEL=TFM_SPM_LOG_LEVEL_INFO")
 set(ML_CMAKE_ARGS "-Dkws_LABELS_TXT_FILE=resources/kws/labels/ds_cnn_labels.txt;-Dkws_MODEL_TFLITE_PATH=resources_downloaded/kws/ds_cnn_clustered_int8_vela_H128.tflite;-DUSE_CASE_BUILD=kws;-Dkws_ACTIVATION_BUF_SZ=0x00400000")
 
 # Set library to std
@@ -106,11 +89,30 @@ set(VARIANT "FVP")
 
 # Apply TF-M patch
 find_package(Git)
-set(TFM_PATCH_COMMAND ${GIT_EXECUTABLE} apply "${PRJ_DIR}/patches/tf-m.patch" || true)
 set(ML_PATCH_COMMAND ${GIT_EXECUTABLE} apply "${PRJ_DIR}/patches/ml-embedded-evaluation-kit.patch" || true)
 
 # Make the Open IoT SDK available
 FetchContent_MakeAvailable(open_iot_sdk)
+
+# Fetch project_options
+FetchContent_Declare(project_options
+    GIT_REPOSITORY  https://github.com/cpp-best-practices/project_options.git
+    GIT_TAG         v0.21.0
+)
+FetchContent_MakeAvailable(project_options)
+include(${project_options_SOURCE_DIR}/Index.cmake)
+include(${project_options_SOURCE_DIR}/src/DynamicProjectOptions.cmake)
+
+include(${open_iot_sdk_SOURCE_DIR}/cmake/warning_flags.cmake)
+set(GCC_WARNINGS ${IOTSDK_WARNING_FLAGS} ${IOTSDK_WARNING_AS_ERRORS_FLAGS})
+set(CLANG_WARNINGS ${GCC_WARNINGS})
+
+dynamic_project_options(
+    CLANG_WARNINGS
+    ${CLANG_WARNINGS}
+    GCC_WARNINGS
+    ${GCC_WARNINGS}
+)
 
 # get paths for the ml kit
 
@@ -121,13 +123,10 @@ set(ml-embedded-evaluation-kit_BINARY_DIR  "${BINARY_DIR}")
 set(ml-embedded-evaluation-kit_GENERATED_DIR "${ml-embedded-evaluation-kit_BINARY_DIR}/generated")
 set(ml-embedded-evaluation-kit_LIB_DIR ${ml-embedded-evaluation-kit_BINARY_DIR}/lib)
 
-# Setup project
 
-# Start of the project
-project(tfm_ns LANGUAGES C CXX)
 
-# Path to AWS credentials
-set(AWS_CONFIG_CREDENTIALS_PATH "${PRJ_DIR}/bsp/default_credentials" CACHE STRING "Path to AWS credentials")
+# Path to credentials
+set(APP_CONFIG_CREDENTIALS_PATH "${PRJ_DIR}/bsp/default_credentials" CACHE STRING "Path to credentials")
 
 # Include module path from Open IoT SDK
 list(APPEND CMAKE_MODULE_PATH ${open_iot_sdk_SOURCE_DIR}/components/TF-M)
@@ -212,7 +211,9 @@ set(HTTP_CONFIG_PATH ${PRJ_DIR}/bsp/aws_configs)
 set(PKCS11_CONFIG_PATH ${PRJ_DIR}/bsp/aws_configs)
 set(MBEDTLS_CONFIG_PATH ${PRJ_DIR}/bsp/aws_libraries/3rdparty/mbedtls_config)
 
-add_subdirectory(lib/AWS)
+if(${CLOUD_CLIENT} STREQUAL "AWS")
+  add_subdirectory(lib/AWS)
+endif()
 add_subdirectory(bsp)
 
 # Setup Target

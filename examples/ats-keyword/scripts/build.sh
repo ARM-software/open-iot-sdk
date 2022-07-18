@@ -27,6 +27,8 @@ CREDENTIALS_PATH="$ROOT/bsp/default_credentials"
 TARGET="Corstone-300"
 TARGET_PROCESSOR=""
 RTOS="FREERTOS"
+ENDPOINT="AWS"
+BUILD=1
 
 set -e
 
@@ -50,8 +52,10 @@ function build_with_cmake {
         set -ex
 
         # Note: A bug in CMake force us to set the toolchain here
-        cmake -G Ninja -S . -B $BUILD_PATH --toolchain=toolchains/toolchain-armclang.cmake -DCMAKE_SYSTEM_PROCESSOR=$TARGET_PROCESSOR -DAWS_CONFIG_CREDENTIALS_PATH=$CREDENTIALS_PATH -DTS_TARGET=$TARGET -DRTOS=$RTOS
-        cmake --build $BUILD_PATH --target $EXAMPLE
+        cmake -G Ninja -S . -B $BUILD_PATH --toolchain=toolchains/toolchain-armclang.cmake -DCMAKE_SYSTEM_PROCESSOR=$TARGET_PROCESSOR -DAPP_CONFIG_CREDENTIALS_PATH=$CREDENTIALS_PATH -DTS_TARGET=$TARGET -DRTOS=$RTOS -DCLOUD_CLIENT=$ENDPOINT
+        if [[ $BUILD -ne 0 ]]; then
+            cmake --build $BUILD_PATH --target $EXAMPLE
+        fi
     )
 }
 
@@ -68,10 +72,13 @@ Options:
     -a,--credentials Credentials path
     -t,--target      Build target (Corstone-300 or Corstone-310)
     -r,--rtos        RTOS selection (FREERTOS | RTX)
+    -e,--endpoint    Cloud client type
+    --configure-only Create build tree but do not build
 
 Examples:
     blinky
     kws
+    mlia
 EOF
 }
 
@@ -80,8 +87,8 @@ if [[ $# -eq 0 ]]; then
     exit 1
 fi
 
-SHORT=a:p:r:t:,c,h
-LONG=credentials:path:rtos:target:,clean,help
+SHORT=a:,p:,r:,t:,e:,c,h
+LONG=credentials:,path:,rtos:,endpoint:,target:,clean,help,configure-only
 OPTS=$(getopt -n build --options $SHORT --longoptions $LONG -- "$@")
 
 eval set -- "$OPTS"
@@ -113,6 +120,14 @@ do
       RTOS=$2
       shift 2
       ;;
+    -e | --endpoint )
+      ENDPOINT=$2
+      shift 2
+      ;;
+    --configure-only )
+      BUILD=0
+      shift
+      ;;
     --)
       shift;
       break
@@ -132,8 +147,11 @@ case "$1" in
     blinky)
         EXAMPLE="blinky"
         ;;
+    mlia)
+        EXAMPLE="mlia"
+        ;;
     *)
-        echo "Missing example <kws|blinky>"
+        echo "Missing example <kws|blinky|mlia>"
         show_usage
         exit 2
         ;;
@@ -152,5 +170,21 @@ case "$TARGET" in
       exit 2
       ;;
 esac
+
+case "$ENDPOINT" in
+    AWS | AZURE )
+      ;;
+    *)
+      echo "Invalid endpoint <AWS | AZURE>"
+      show_usage
+      exit 2
+      ;;
+esac
+
+if [[ "$EXAMPLE" = "mlia" ]]; then
+    source "$ROOT/$EXAMPLE/mlia.sh"
+    build_mlia $CLEAN "$BUILD_PATH/$EXAMPLE"
+    exit 0
+fi
 
 build_with_cmake
