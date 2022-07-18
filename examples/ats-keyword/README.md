@@ -1,6 +1,6 @@
 # Introduction
 
-[Arm IoT Total Solutions](https://www.arm.com/solutions/iot/total-solutions-iot) provides a complete solution designed for specific use-cases, leaving developers to focus on what really matters – innovation and differentiation across diverse and varied use cases. It has everything needed to simplify the design process and streamline product development, including hardware IP, software, real-time OS support, machine learning (ML) models, advanced tools such as the new Arm Virtual Hardware, application specific reference code and support from the world’s largest IoT ecosystem.
+[Arm IoT Total Solutions](https://www.arm.com/solutions/iot/total-solutions-iot) provides a complete solution designed for specific use-cases, leaving developers to focus on what really matters - innovation and differentiation across diverse and varied use cases. It has everything needed to simplify the design process and streamline product development, including hardware IP, software, real-time OS support, machine learning (ML) models, advanced tools such as the new Arm Virtual Hardware, application specific reference code and support from the world's largest IoT ecosystem.
 
 # Overview
 
@@ -26,8 +26,8 @@ Follow these simple steps to build and execute the code example's application wi
 
 * [Launch Arm Virtual Hardware system](#launch-arm-virtual-hardware-instance)
 * [Build and execute](#build-and-execute-the-application)
-* [Setting up Cloud connectivity](#setting-up-aws-connectivity)
-* [Enabling OTA firmware update from the Cloud](#ota-firmware-update)
+* [AWS Cloud connectivity setup and execution](#setting-up-aws-connectivity)
+* [Azure Cloud connectivity setup and execution](#setting-up-azure-connectivity)
 * [Terminating Arm Virtual Hardware](#terminate-arm-virtual-hardware-instance)
 
 # Launch Arm Virtual Hardware Instance
@@ -37,7 +37,7 @@ There are 2 ways to launch the **Arm Virtual Hardware Instance**, choose one tha
 2. [Local Terminal launch](#launch-using-a-local-terminal)
 
 ## Launch Using AWS Web Console
-To utilize the Arm Virtual Hardware, you will need to create an [AWS Account](https://aws.amazon.com/premiumsupport/knowledge-center/create-and-activate-aws-account/) if you don’t already have one.
+To utilize the Arm Virtual Hardware, you will need to create an [AWS Account](https://aws.amazon.com/premiumsupport/knowledge-center/create-and-activate-aws-account/) if you don't already have one.
 
 ### Launching the instance in EC2 [(AWS on getting started)](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/EC2_GetStarted.html)
 
@@ -50,7 +50,7 @@ To utilize the Arm Virtual Hardware, you will need to create an [AWS Account](ht
 
      * **Step 2: Choose an [Amazon Machine Image (AMI)](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/AMIs.html)**
         * In the Search box, type `Arm Virtual Hardware` and then hit "enter" to find the item called <ins>"Arm Virtual Hardware" - "By Arm"</ins>.
-          > Select: **Arm Virtual Hardware By Arm | Ver Version 1.2.2**
+          > Select: **Arm Virtual Hardware By Arm | Version 1.2.3**
           * NOTE: If you do not see the expected items, make sure the <ins>**AWS Marketplace AMIs**</ins> tab is selected.
         * Click on "Select" for that item. This image contains all the software necessary to build and run the Arm IoT Total Solutions.
           * This will raise a subscription page/pop-up titled, **Arm Virtual Hardware**.
@@ -60,18 +60,22 @@ To utilize the Arm Virtual Hardware, you will need to create an [AWS Account](ht
      * **Step 3: Choose an Instance Type** - Select one of the instance types from the list.
         * We recommend the **c5.large**.
         * **Important:** Charges accrue while the instance is running and to a lesser degree when stopped.
-        * Terminating the instance stops any charges from occurring.
+        * Terminating the instance stops nearly all charges from occurring.
 
      * **Step 4: Key pair (login)**
        * To ensure easy connection when using SSH from a local terminal, it is recommended to create a key pair at this time.
        * Click on **Create new key pair**
-       * Enter a descriptive name, e.g. My_Key_Pair_AVH_us-west-2
+       * Enter a descriptive name, e.g. My_Key_Pair_AVH_us-west-2 or simply **MyKeyPair**
          *  To keep track of all the different things you create, we recommend adding your active region to the name.
        * Using the defaults options is fine.
        * Click on **Create key pair**
        * A private key is downloaded, place this in a location you will not forget as it is used later.
+       * Once saved, you must fix the permissions of the file wherever you just stored it:
+       ```sh
+            chmod 400 MyKeyPair.pem
+        ```
 
-     * **Step 5: Configure storage** - To ensure enough disk drive space to contain the entire build image.  Set the amount of storage to "1x **24** GiB".
+     * **Step 5: Configure storage** - To ensure enough disk drive space to contain the entire build image.  Set the amount of storage to at least "1x **24** GiB".
 
      * **Final Step:** From here you may select **Review and Launch** to move directly to the launch page or continue to configure instance details if you need to set any custom settings for this instance.
 
@@ -96,7 +100,7 @@ The instructions in this section, allow you to create and connect to an instance
 
 2. [Configure](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-quickstart.html) the access key, secret key and region that AWS CLI will use. If your organization uses AWS Single Sign-On, the [configuration process](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html) is slightly different. Make sure the region selected matches the region of the SSO service.
 
-3. Create a new key pair.
+3. Create a new key pair if you have not done so already above.
 
 ```sh
 aws ec2 create-key-pair --key-name MyKeyPair
@@ -123,11 +127,11 @@ chmod 400 MyKeyPair.pem
 ```
 
 2. Connect to the instance using SSH and the private key saved locally.
-  * e.g. ssh -i .ssh/instance_key.pem ubuntu@\<**Public IPv4 DNS**\>
+  * e.g. ssh -i .ssh/MyKeyPair.pem ubuntu@\<**Public IPv4 DNS**\>
     * Look in your instance page at [EC2](https://console.aws.amazon.com/ec2/v2/) AWS Web Console for the **Public IPv4 DNS** value of your Instance.
 
 ```sh
-ssh -i .ssh/instance_key.pem ubuntu@ec2-xxx.xxx.xxx.xxx.eu-west-1.compute.amazonaws.com
+ssh -i .ssh/MyKeyPair.pem ubuntu@ec2-xxx.xxx.xxx.xxx.eu-west-1.compute.amazonaws.com
 ```
 
 # Re-connect a terminal to the instance
@@ -146,12 +150,12 @@ Choose your terminal connection type (AWS-Web-Console or Local-Console)
  * Local-Console
      * Open your favorite terminal program or linux shell application and connect to the AVH AMI instance:
      * AWS requires you to use a secure connection, using the instance certificate you downloaded earlier.
-     * e.g. ssh -i .ssh/instance_key.pem ubuntu@\<**Public IPv4 DNS**\>
+     * e.g. ssh -i .ssh/MyKeyPair.pem ubuntu@\<**Public IPv4 DNS**\>
        * Look in your instance page at [EC2](https://console.aws.amazon.com/ec2/v2/) AWS Web Console for the **Public IPv4 DNS** value of your Instance.
 
       Example
      ```sh
-     ssh -i .ssh/instance_key.pem ubuntu@ec2-xxx.xxx.xxx.xxx.eu-west-1.compute.amazonaws.com
+     ssh -i .ssh/MyKeyPair.pem ubuntu@ec2-xxx.xxx.xxx.xxx.eu-west-1.compute.amazonaws.com
      ```
 If you do not know your instance value, refer to the **AWS-Web-Console** instructions just above to get this information.
 
@@ -166,12 +170,12 @@ build applications, run them and test them. These scripts must be executed in th
 
 Open your favorite terminal program or linux shell application and connect to the AVH AMI instance.
 * AWS requires you to use a secure connection, using the instance certificate you downloaded earlier.
-* e.g. ssh -i .ssh/instance_key.pem ubuntu@\<**Public IPv4 DNS**\>
+* e.g. ssh -i .ssh/MyKeyPair.pem ubuntu@\<**Public IPv4 DNS**\>
   * Look in your instance page at [EC2](https://console.aws.amazon.com/ec2/v2/) AWS Web Console for the **Public IPv4 DNS** value of your Instance.
 
 Example
 ```sh
-ssh -i .ssh/instance_key.pem ubuntu@ec2-xxx.xxx.xxx.xxx.eu-west-1.compute.amazonaws.com
+ssh -i .ssh/MyKeyPair.pem ubuntu@ec2-xxx.xxx.xxx.xxx.eu-west-1.compute.amazonaws.com
 ```
 
 ## Prepare environment
@@ -246,9 +250,14 @@ The `run` command can take the `--path` switch to run a particular build. It use
 This is equivalent to:
 
 ```sh
-./ats.sh run kws --path build
+./ats.sh run kws --target Corstone-300 --path build
 ```
 
+To build for Corstone-310 use `--target Corstone-310`
+
+For details on the expected console output when the 'kws' running, cleck [here](./kws).
+
+To terminate the execution, press **Ctrl-C** within the console.  For CI systems this is handled via the scripts.
 ## Integration tests
 
 Launch the kws integration tests:
@@ -330,7 +339,7 @@ The instructions below will allow the Application to send messages to the Cloud 
 
 <br>
 
-   > NOTE – The examples in this document are intended for development environments only.  All devices in your production fleet must have credentials with privileges that authorize only intended actions on specific resources. The specific permission policies can vary for your use case. Identify the permission policies that best meet your business and security requirements.  For more information, refer to Example policies and Security Best practices of your Cloud-Service-Provider.
+   > NOTE - The examples in this document are intended for development environments only.  All devices in your production fleet must have credentials with privileges that authorize only intended actions on specific resources. The specific permission policies can vary for your use case. Identify the permission policies that best meet your business and security requirements.  For more information, refer to Example policies and Security Best practices of your Cloud-Service-Provider.
 
 <br>
 
@@ -349,6 +358,14 @@ Now that you have created an AWS Thing and attached the certificates and policie
 
 Within the application directory that you are using, edit the `bsp/default_credentials/aws_clientcredential.h` file and set values for specified user defines called out below.
 
+```sh
+cd bsp/default_credentials
+```
+
+```sh
+vi aws_clientcredential.h
+```
+
 `clientcredentialMQTT_BROKER_ENDPOINT`
 
 * Set this to the Device data endpoint name of your amazon account.
@@ -364,6 +381,10 @@ Save and close the file.
 
 
 Next insert the keys that are in the certificates you have downloaded when you created the thing. Edit the file `bsp/default_credentials/aws_clientcredential_keys.h` replacing the existing keys with yours.
+
+```sh
+vi aws_clientcredential_keys.h
+```
 
 `keyCLIENT_CERTIFICATE_PEM`
 
@@ -391,6 +412,7 @@ To see messages being sent by the application:
    * e.g. if you thing name is MyThing then it's `MyThing/ml/inference`
 8. In the **MQTT payload display** combo box select `Display payloads as strings (more accurate)`
 9. Click the **Subscribe** button. The messages will be shown below within this same page.
+   1.  Switch back to the console and run the application now
 
 # OTA firmware update
 
@@ -404,7 +426,7 @@ If you want to add other changes you should copy the original binary elsewhere b
 
 For example, the updated binary is placed in `build/kws/kws_signed_update.bin`. The updated binary is already signed and it is the file you will need to upload to the Amazon S3 bucket in the next section.
 
-Upon completion of the build and signing process the <ins>signature string will be echoed to the terminal</ins>. This will be needed in the next step.
+Upon completion of the build and signing process the <ins>signature string will be echoed to the terminal</ins>. This will be needed in the next step. If you dont have the last build output available, go ahead and rebuild now.  Look at the end of the build output for the following string <Use this base 64 encoded signature in OTA job>. The text after that label is what is needed below.
 
 ## Creating AWS IoT firmware update job
 
@@ -413,28 +435,92 @@ The instructions below use the keyword spotting name, kws, as an example.  Repla
 1. Follow the instructions at: [Create an Amazon S3 bucket to store your update](https://docs.aws.amazon.com/freertos/latest/userguide/dg-ota-bucket.html)
   * Use the default options wherever you have a choice.
   * For simplicity, use the same region for the bucket as where your Instance is located.
-2. Follow the instructions at: [Create an OTA Update service role](https://docs.aws.amazon.com/freertos/latest/userguide/create-service-role.html)
-3. Follow the instructions at: [Create an OTA user policy](https://docs.aws.amazon.com/freertos/latest/userguide/create-ota-user-policy.html)
-4. Go to AWS IoT web interface and choose **Manage** and then **Jobs**
-5. Click the create job button and select **Create FreeRTOS OTA update job**
-6. Give it a name and click next
-7. Select the device to update (the Thing you created in earlier steps)
-8. Select `MQTT` transport only
-9. Select **Use my custom signed file**
-10. Select upload new file and select the signed update binary (`build/kws/kws_signed_update.bin`)
-11. Select the S3 bucket you created in step 1. to upload the binary to
-12. Paste the signature string that is echoed during the build of the example (it is also available in `build/kws/update-signature.txt`).
-13. Select `SHA-256` and `RSA` algorithms.
-14. For **Path name of code signing certificate on device** put in `0` (the path is not used)
-15. For **Path name of file on device** put in `non_secure image`
-16. As the role, select the OTA role you created in step 2.
-17. Click next
-18. Create an ID for you Job
-19. Add a description
-20. **Job type**, select *Your job will complete after deploying to the selected devices/groups (snapshot).*
-21. Click next, your update job is ready and running - next time your application connects it will perform the update.
+  * To upload binaries from an EC2 instance you will need to do the following:
+    * Create an IAM role with S3 write access or admin access
+      * Login to your **AWS Management Console**,  go to **IAM** then click on **Roles**
+      * Select `AWS service`, then click `EC2` and finally click **Next**
+      * Click on **Create Role**
+      * Search for the policy: `AmazonS3FullAccess`, select it.
+      * Add a descriptive name: `S3FullAccessEC2`
+      * Add the following Tag:  `Policy:S3`
+      * Select Create
+    * Map the IAM role to an EC2 instance
+      * Go to **EC2** then click on **Instances**
+      * Choose the EC2 instance you want to assign this IAM role to.
+      * Click on **Actions > Security> Modify IAM Role**
+      * Search for the IAM Role we have created in the previous step and select it and hit Save.
+    * Install AWS CLI in EC2 instance (Linux Version)
+      * Click [here](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) for instructions.
+2. Upload binary file for OTA process (EC2 to S3 process)
+   1. This process shows how to upload a file for this application running in an EC2 instance to an S3 bucket
+   2. In the EC2 console where you built the application, copy the file from EC2 to the S3 bucket you create earlier.
+
+      `aws s3 cp build/kws/kws_signed_update.bin s3://<S3BucketName>`
+
+      **\<S3BucketName\>** is the name of the bucket you just created.
+
+3. Follow the instructions at: [Create an OTA Update service role](https://docs.aws.amazon.com/freertos/latest/userguide/create-service-role.html)
+4. Follow the instructions at: [Create an OTA user policy](https://docs.aws.amazon.com/freertos/latest/userguide/create-ota-user-policy.html)
+5. Go to AWS IoT web interface and choose **Manage** and then **Jobs**
+   * Click the create job button and select **Create FreeRTOS OTA update job**
+   * Give it a name and click next
+   * Select the device to update (the Thing you created in earlier steps)
+   * Select `MQTT` transport only
+   * Select **Use my custom signed file**
+   *  Select upload new file and select the signed update binary (`kws_signed_update.bin`)
+   *  Select the S3 bucket you created in step 1. to upload the binary to
+   *  Paste the signature string that is echoed during the build of the example, it is also available in `update-signature.txt`).
+
+      `cat build/kws/update-signature.txt`
+
+   *  Select `SHA-256` and `RSA` algorithms.
+   * For **Path name of code signing certificate on device** put in `0` (the path is not used)
+   * For **Path name of file on device** put in `non_secure image`
+   * As the role, select the OTA role you created in step 2.
+   * Click next
+   * Create an ID for you Job
+   * Add a description
+   * **Job type**, select *Your job will complete after deploying to the selected devices/groups (snapshot).*
+   * Click next, your update job is ready and running - next time your application connects it will perform the update.
+6.  Restart the application
 
 <br>
+
+# Setting up Azure connectivity
+
+The Keyword Detection application can connect to an Azure IoT Hub and report ML inference results through that connection.
+
+To connect to the Azure IoT Hub cloud service you will need to setup a device and then set the device connection string within the Application. You will need to create an [Azure Account](https://azure.microsoft.com/) if you don’t already have one.
+
+
+## Azure IoT Hub setup
+
+To create a new Azure IoT Hub and one device within it through the web portal follow the [instructions](https://docs.microsoft.com/en-us/azure/iot-hub/iot-hub-create-through-portal) provided by Azure.
+
+## Configure the application to connect to your Azure IoT Hub
+
+Now that you have created a device in your IoT Hub, the application must be configured to connect to the Azure IoT Hub with the credentials of the device created.
+
+Within the application directory that you are using, edit the `bsp/default_credentials/iothub_credentials.h` file.
+
+You must set the define `IOTHUB_DEVICE_CONNECTION_STRING` to the value of the device's `Primary Connection String`. This value can be [retrieved](https://docs.microsoft.com/en-us/azure/iot-hub/iot-hub-create-through-portal#register-a-new-device-in-the-iot-hub) in the portal.
+
+
+## Build the application to connect to your Azure IoT Hub
+
+The application selects a cloud client (Aws or Azure) at build time. This is achieved by adding the flag `-e <AZURE|AWS>` to the build command line.
+To build a version of kws connecting to the Azure cloud on Corstone-300 and using FreeRTOS, use the following command line:
+
+```sh
+./ats.sh build kws -e AZURE
+```
+
+## Monitoring messages sent to your Azure IoT Hub
+
+The Azure web portal does not offer monitoring facilities to visualize packets received out of the box.
+To monitor packets, you can use the [Azure IoT Tools](https://marketplace.visualstudio.com/items?itemName=vsciot-vscode.azure-iot-tools) VS Code extension and follow these [instructions](https://docs.microsoft.com/en-us/azure/iot-hub/iot-hub-vscode-iot-toolkit-cloud-device-messaging#monitor-device-to-cloud-messages).
+
+To monitor activity (connection, disconnection, ...) follow the [reference instructions](https://docs.microsoft.com/en-us/azure/iot-hub/monitor-iot-hub).
 
 # Terminate Arm Virtual Hardware Instance
 
@@ -456,18 +542,19 @@ Execute the following script located in the application repository.
 
 - `bsp`: Arm Corstone-300 subsystem platform code and AWS configurations.
 - `lib`: Middleware used by IoT Total Solution.
-  - `lib/mcuboot`: MCUboot bootloader.
-  - `lib/tf-m`: Trusted Firmware M: [Platform Security Architecture](PSA) for Armv8-M.
-  - `lib/mbedcrypto`: Mbed TLS and PSA cryptographic APIs.
-  - `lib/ml-embedded-evaluation-kit`: Arm ML embedded evaluation kit Ethos NPU. It includes [TensorFlow](https://www.tensorflow.org/)
-  - `lib/amazon_freertos`: FreeRTOS distribution.
-  - `libVHT`: Virtual streaming solution for Arm Virtual Hardware.
+  - `AWS`: OTA and PKCS11 integration with AWS IoT SDK.
+  - `VHT`: Virtual streaming solution for Arm Virtual Hardware.
 - `blinky`: Blinky application.
   - `blinky/main_ns.c`: Entry point of the blinky application
 - `kws`: Keyword detection application.
   - `kws/source/main_ns.c`: Entry point of the kws application.
+  - `kws/source/aws_demo.c`: AWS IoT specific code of the kws application.
+  - `kws/source/azure_demo.c`: Azure IoT Hub specific code of the kws application.
   - `kws/source/blinky_task.c`: Blinky/UX thread of the application.
   - `kws/source/ml_interface.c`: Interface between the virtual streaming solution and tensor flow.
+  - `kws/source/ethosu_platform_adaptation.c`: RTOS adapatation for the Ethos U55.
+  - `kws/ota`: Connector between AWS OTA and the application.
+- `mlia`: Integration the ML Inference Advisor, using a simple wrapper script.sh to install and run the tool on given models.
 
 # ML Model Replacement
 
@@ -540,6 +627,9 @@ The software is provided under the Apache-2.0 license. All contributions to soft
 
 Folders containing files under different permissive license than Apache 2.0 are listed in the LICENSE file.
 
+# Security
+
+Information on security considerations for an end user application can be found [here](https://gitlab.arm.com/iot/open-iot-sdk/sdk/-/blob/main/docs/guidelines/Security.md).
 ## Security issues reporting
 
 If you find any security vulnerabilities, please do not report it in the GitLab issue tracker. Instead, send an email to the security team at arm-security@arm.com stating that you may have found a security vulnerability in the IoT Total Solution Keyword Detection project.
