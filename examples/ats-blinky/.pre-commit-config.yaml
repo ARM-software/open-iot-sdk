@@ -11,6 +11,8 @@ repos:
     rev: v14.0.4
     hooks:
     -   id: clang-format -i
+        args:
+        - "-style=file:developer-tools/.clang-format"
 -   repo: https://git.gitlab.arm.com/iot/open-iot-sdk/tools/developer-tools.git
     rev: 777223b9a7d574cfa773f845ea4cad2f8d677123
     hooks:
