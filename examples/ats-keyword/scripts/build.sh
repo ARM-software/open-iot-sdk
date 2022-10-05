@@ -145,9 +145,6 @@ case "$1" in
     keyword | speech | blinky | mlia)
         EXAMPLE="$1"
         ;;
-    mlia)
-        EXAMPLE="mlia"
-        ;;
     *)
         echo "Missing example <keyword|speech|blinky|mlia>"
         show_usage

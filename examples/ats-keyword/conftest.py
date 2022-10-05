@@ -77,23 +77,6 @@ def audio_file(pytestconfig, binary_path: str):
     return path
 
 
-@pytest.fixture
-def fvp_options(pytestconfig):
-    raw_options = pytestconfig.getoption("--avh-options")
-
-    if raw_options == "":
-        return []
-
-    options = raw_options.split(",")
-
-    def options_builder(options, opt):
-        options.append("-C")
-        options.append(opt)
-        return options
-
-    return reduce(options_builder, options, [])
-
-
 @pytest.fixture(scope="function")
 def fvp(fvp_path, build_path, vsi_script_path, binary_path, fvp_options, audio_file):
     # Fixture of the FVP, when it returns, the FVP is started and
