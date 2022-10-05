@@ -11,7 +11,8 @@ This example supports the following targets:
 ## Building
 
 ```sh
-cmake -B __build --toolchain=toolchains/toolchain-arm-none-eabi-gcc.cmake -DCMAKE_SYSTEM_PROCESSOR=cortex-m4 -DMDH_PLATFORM=ARM_AN386_MPS2 .
+# Note: This requires `arm-none-eabi-gcc` and `ninja` commands to be available on the path
+cmake -B __build -GNinja --toolchain=toolchains/toolchain-arm-none-eabi-gcc.cmake -DCMAKE_SYSTEM_PROCESSOR=cortex-m4 -DMDH_PLATFORM=ARM_AN386_MPS2 .
 cmake --build __build -j
 ```
 
