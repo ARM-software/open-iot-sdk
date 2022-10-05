@@ -13,15 +13,14 @@ add_library(ota_for_aws STATIC EXCLUDE_FROM_ALL
 
 target_include_directories(ota_for_aws
     PUBLIC
-        "${PRJ_DIR}/bsp/aws_configs"
-        "${PRJ_DIR}/bsp/aws_libraries/freertos_plus/aws/ota/include"
-        "${PRJ_DIR}/bsp/aws_libraries/freertos_plus/aws/ota/src"
-        "${PRJ_DIR}/bsp/aws_libraries/freertos_plus/aws/ota/src/http"
-        "${PRJ_DIR}/bsp/aws_libraries/freertos_plus/aws/ota/src/mqtt"
-        "${PRJ_DIR}/bsp/aws_libraries/logging/include"
-        "${PRJ_DIR}/kws/ota/ota_pal_psa"
-        "${PRJ_DIR}/kws/ota/ota_pal_psa/version"
-        "${PRJ_DIR}/kws/ota/provision"
+        "${PRJ_DIR}/lib/AWS/aws_libraries/freertos_plus/aws/ota/include"
+        "${PRJ_DIR}/lib/AWS/aws_libraries/freertos_plus/aws/ota/src"
+        "${PRJ_DIR}/lib/AWS/aws_libraries/freertos_plus/aws/ota/src/http"
+        "${PRJ_DIR}/lib/AWS/aws_libraries/freertos_plus/aws/ota/src/mqtt"
+        "${PRJ_DIR}/lib/AWS/aws_libraries/logging/include"
+        "${PRJ_DIR}/lib/AWS/ota/ota_pal_psa"
+        "${PRJ_DIR}/lib/AWS/ota/ota_pal_psa/version"
+        "${PRJ_DIR}/lib/AWS/ota/provision"
         "${aws-iot-device-sdk_SOURCE_DIR}/libraries/aws/ota-for-aws-iot-embedded-sdk/source/include"
         "${aws-iot-device-sdk_SOURCE_DIR}/libraries/aws/ota-for-aws-iot-embedded-sdk/source/portable/os"
         "${TFM_PLATFORM_TARGET_DIR}/arm/mps3/an547/device/include"
@@ -32,4 +31,5 @@ target_link_libraries(ota_for_aws
         cmsis-rtos-api
         tinycbor
         coreJSON
+        aws-configs
 )

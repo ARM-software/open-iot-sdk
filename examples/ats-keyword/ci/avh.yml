@@ -1,0 +1,45 @@
+name: "Open IoT-SDK Keyword Tests"
+workdir: ../
+backend:
+  aws:
+    instance-type: c5.large
+  # AMI version will be set in environmental variable
+upload:
+  - '**/*'
+  - '**/.git/**/*'
+steps:
+  - run: |
+      sudo apt update -y
+      sudo apt install python3.8-venv -y
+      python3.8 -m pip install imgtool cbor2
+      python3.9 -m pip install cffi intelhex cbor2 cbor pytest click imgtool jinja2 boto3 boto3-type-annotations jmespath
+
+  - run: |
+      export PATH=$PATH:$HOME/.local/bin
+      find . -name "*.sh" -exec chmod +x {} \;
+  # build application ci/env.sh is used to pass environmental variables
+  # from GitLab runner to AWS EC2 instance running AVH AMI
+  - run: |
+      export PATH=$PATH:$HOME/.local/bin
+      . ./ci/env.sh
+      export ARM_TOOL_VARIANT=ult
+      for APPLICATION in ${APPLICATIONS_TO_BUILD//,/ }
+      do
+        ./ats.sh build ${APPLICATION} --path ${BUILD_PATH} -a ${CREDENTIALS_PATH} --target ${TARGET} --rtos ${RTOS} -e ${ENDPOINT}
+      done
+
+  # run tests
+  - run: |
+      # source env/bin/activate
+      export PATH=$PATH:$HOME/.local/bin
+      . ./ci/env.sh
+      export ARM_TOOL_VARIANT=ult
+      for TEST_ID in ${PYTEST_SELECTION//,/ }
+      do
+          pytest -s ${TEST_ID} --build-path ${BUILD_PATH} --avh ${AVH} --credentials-path ${CREDENTIALS_PATH} --junitxml=report_"${TEST_ID//\//-}".xml
+      done
+      ls -la
+
+download:
+  - build/**/*.log
+  - report*.xml

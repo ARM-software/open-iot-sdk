@@ -19,8 +19,7 @@ add_library(coreMQTT-Agent STATIC EXCLUDE_FROM_ALL
 
 target_include_directories(coreMQTT-Agent
     PUBLIC
-        "${PRJ_DIR}/bsp/aws_configs"
-        "${PRJ_DIR}/bsp/aws_libraries/logging/include"
+        "${PRJ_DIR}/lib/AWS/aws_libraries/logging/include"
         "${aws-iot-device-sdk_SOURCE_DIR}/libraries/aws/ota-for-aws-iot-embedded-sdk/source/include"
         "${aws-iot-device-sdk_SOURCE_DIR}/libraries/aws/ota-for-aws-iot-embedded-sdk/source/portable/os"
         "${aws-iot-device-sdk_SOURCE_DIR}/libraries/standard/coreMQTT/source/include"
@@ -34,4 +33,5 @@ target_link_libraries(coreMQTT-Agent
         cmsis-rtos-api
         coreJSON
         tinycbor
+        aws-configs
 )

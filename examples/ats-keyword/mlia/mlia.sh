@@ -51,7 +51,7 @@ function create_and_enable_virt_env {
 }
 
 function install_mlia {
-    pip install mlia
+    pip install mlia==0.3.0
 }
 
 function download_models {
@@ -65,7 +65,8 @@ function download_models {
 
 function install_backends {
     local VHT_PATH="/opt/VHT"
-    local BACKENDS="Corstone-300 Corstone-310"
+    local BACKENDS_ORIG="Corstone-300 Corstone-310"
+    local BACKENDS="Corstone-300"
 
     local failed=""
     for backend in $BACKENDS; do
@@ -86,8 +87,8 @@ function prepare_build_path {
     local BUILD_PATH=$2
 
     if [[ $CLEAN -ne 0 ]]; then
-      echo "Clean building mlia" >&2
-      rm -rf "$BUILD_PATH"
+        echo "Clean building mlia" >&2
+        rm -rf "$BUILD_PATH"
     elif [[ -e "$BUILD_PATH" ]]; then
         echo "Example mlia already installed. For a new installation, use the \"clean\" option: ats.sh build mlia --clean" >&2
         exit 1
@@ -110,20 +111,30 @@ function build_mlia {
 }
 
 function mlia_cmd() {
-    local cmd="mlia $@"
-    echo "TS: Running [$cmd]"
-    $cmd
+    local parameters="$1"
+    local mlia_output="$2"
+
+    local cmd="mlia $parameters"
+    echo "TS: Running [$cmd]" | tee -a "$mlia_output"
+
+    $cmd 2>&1 | tee -a "$mlia_output"
 }
+
 function run_mlia {
     set -e
 
     local BUILD_PATH="$1"
     local VIRT_ENV="$BUILD_PATH/venv"
     local MODELS_DIR="$BUILD_PATH/models"
+    local MLIA_OUTPUT="$BUILD_PATH/mlia_output.txt"
 
     enable_virt_env "$VIRT_ENV" 0 1
 
+    if [[ -f "$MLIA_OUTPUT" ]]; then
+      rm "$MLIA_OUTPUT"
+    fi
+
     local COMMON_ARGS="$MODELS_DIR/ds_cnn_l_quantized.tflite --working-dir $BUILD_PATH/mlia_output --verbose"
-    mlia_cmd "operators   $COMMON_ARGS"
-    mlia_cmd "performance $COMMON_ARGS"
+    mlia_cmd "operators   $COMMON_ARGS" "$MLIA_OUTPUT"
+    mlia_cmd "performance $COMMON_ARGS" "$MLIA_OUTPUT"
 }

@@ -71,13 +71,14 @@ Options:
     -p,--path        Build path
     -a,--credentials Credentials path
     -t,--target      Build target (Corstone-300 or Corstone-310)
-    -r,--rtos        RTOS selection (FREERTOS | RTX)
+    -r,--rtos        RTOS selection (FREERTOS | RTX | THREADX)
     -e,--endpoint    Cloud client type
     --configure-only Create build tree but do not build
 
 Examples:
     blinky
-    kws
+    keyword
+    speech
     mlia
 EOF
 }
@@ -141,17 +142,14 @@ do
 done
 
 case "$1" in
-    kws)
-        EXAMPLE="kws"
-        ;;
-    blinky)
-        EXAMPLE="blinky"
+    keyword | speech | blinky | mlia)
+        EXAMPLE="$1"
         ;;
     mlia)
         EXAMPLE="mlia"
         ;;
     *)
-        echo "Missing example <kws|blinky|mlia>"
+        echo "Missing example <keyword|speech|blinky|mlia>"
         show_usage
         exit 2
         ;;

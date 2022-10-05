@@ -3,12 +3,13 @@
 exclude: >
     (?x)^(
         bsp/aws_configs/|
-        bsp/aws_libraries/|
-        bsp/freertos-platform/|
+        bsp/platform/|
         bsp/freertos-config/|
         bsp/default_credentials/|
         bsp/tf_m_targets/|
-        kws/ota/
+        examples/speech/include/dsp|
+        examples/speech/source/dsp|
+        lib/
     )
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
@@ -17,6 +18,7 @@ repos:
     -   id: trailing-whitespace
     -   id: end-of-file-fixer
     -   id: check-added-large-files
+        args: ['--maxkb=2500']
 -   repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v14.0.4
     hooks:

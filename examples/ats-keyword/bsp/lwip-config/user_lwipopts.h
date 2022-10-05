@@ -9,3 +9,6 @@
 
 #define MEM_ALIGNMENT 4U
 #define MEM_SIZE      (20 * 1024)
+
+// prevent warnings from LWIP
+#define LWIP_NO_STDINT_H 1

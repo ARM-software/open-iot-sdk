@@ -52,6 +52,16 @@
     "MrY=\r\n" \
     "-----END CERTIFICATE-----\r\n" 
 
-#define IOTHUB_DEVICE_CONNECTION_STRING  "Invalid connection string"
+/* replace this for direct connection to your endpoint, this will be used instead of the provisioning config below */
+#define IOTHUB_DEVICE_CONNECTION_STRING "Invalid connection string"
+
+/* replace with provisioning configuration */
+#define IOTHUB_DPS_ENDPOINT ""
+#define IOTHUB_DPS_ID_SCOPE ""
+#define IOTHUB_DPS_REGISTRATION_ID ""
+#define IOTHUB_DPS_KEY ""
+
+/* optional model id string */
+#define IOTHUB_MODEL_STRING ""
 
 #endif /* IOTHUB_CREDENTIALS_H */

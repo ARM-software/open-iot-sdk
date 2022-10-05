@@ -35,7 +35,8 @@ Options:
 
 Examples:
     blinky
-    kws
+    keyword
+    speech
     mlia
 EOF
 }
@@ -75,17 +76,11 @@ done
 
 
 case "$1" in
-    kws)
-        EXAMPLE="kws"
-        ;;
-    blinky)
-        EXAMPLE="blinky"
-        ;;
-    mlia)
-        EXAMPLE="mlia"
+    keyword | speech | blinky | mlia)
+        EXAMPLE="$1"
         ;;
     *)
-        echo "Usage: $0 <blinky|kws|mlia>" >&2
+        echo "Usage: $0 <blinky|keyword|speech|mlia>" >&2
         exit 1
         ;;
 esac
@@ -112,7 +107,7 @@ fi
 
 set -x
 
-VSI_PY_PATH=$PWD/lib/VHT/interface/audio/python
-OPTIONS="-V $VSI_PY_PATH -C mps3_board.visualisation.disable-visualisation=1 -C mps3_board.smsc_91c111.enabled=1 -C mps3_board.hostbridge.userNetworking=1 -C cpu0.semihosting-enable=1 -C mps3_board.telnetterminal0.start_telnet=0 -C mps3_board.uart0.out_file="-"  -C mps3_board.uart0.unbuffered_output=1 --stat  -C mps3_board.DISABLE_GATING=1"
+VSI_PY_PATH=$ROOT/lib/AVH/audio
+OPTIONS="-V $VSI_PY_PATH -C mps3_board.visualisation.disable-visualisation=1 -C mps3_board.smsc_91c111.enabled=1 -C mps3_board.hostbridge.userNetworking=1 -C cpu0.semihosting-enable=1 -C mps3_board.telnetterminal0.start_telnet=0 -C mps3_board.uart0.out_file="-"  -C mps3_board.uart0.unbuffered_output=1 --stat  -C mps3_board.DISABLE_GATING=1 -C cpu_core.core_clk.mul=200000000"
 
-$FVP_BIN $OPTIONS -a cpu0*="$BUILD_PATH/bootloader/bl2.axf" --data "$BUILD_PATH/secure_partition/tfm_s_signed.bin"@0x38000000 --data "$BUILD_PATH/$1/$1_signed.bin"@0x28060000
+AVH_AUDIO_FILE=$ROOT/examples/$EXAMPLE/test.wav $FVP_BIN $OPTIONS -a cpu0*="$BUILD_PATH/bootloader/bl2.axf" --data "$BUILD_PATH/secure_partition/tfm_s_signed.bin"@0x38000000 --data "$BUILD_PATH/examples/$1/$1_signed.bin"@0x28060000

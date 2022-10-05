@@ -13,13 +13,12 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import pytest
 import os
 import subprocess
 import re
 
 
-def test_ats_run_mlia(pytestconfig):
+def test_ats_run_mlia(pytestconfig, build_path):
     required_patterns = [
         "ML Inference Advisor started",
         "Supported targets:",
@@ -28,18 +27,23 @@ def test_ats_run_mlia(pytestconfig):
         "CONV_2D",
     ]
 
-    subcommmand = "run mlia"
-    cmdline = os.path.join(pytestconfig.rootpath, "ats.sh ") + subcommmand
-    proc = subprocess.Popen(
-        cmdline, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
-    )
+    cmdline = f"{pytestconfig.rootpath / 'ats.sh'} run mlia"
 
-    lines = proc.stdout.readlines()
-    assert len(lines) > 2, f"Too few lines in output {lines}"
+    with subprocess.Popen(
+        cmdline,
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        universal_newlines=True
+    ) as proc:
+        lines = proc.stdout.readlines()
+        assert len(lines) > 2, f"Too few lines in output {lines}"
 
-    for required_pattern in required_patterns:
-        found = any(filter(lambda l: re.search(required_pattern, str(l)), lines))
-        assert found, f"Pattern not found {required_pattern} in output: \n {lines}"
+        for required_pattern in required_patterns:
+            found = any(l for l in lines if re.search(required_pattern, l))
+            assert found, f"Pattern not found {required_pattern} in output: \n {lines}"
 
-    proc.terminate()
-    proc.wait()
+        proc.terminate()
+
+    with open(os.path.join(build_path, "mlia/mlia_output.txt")) as saved_output:
+        assert lines == saved_output.readlines()

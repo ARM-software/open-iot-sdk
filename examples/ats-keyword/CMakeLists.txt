@@ -9,7 +9,7 @@ include(FetchContent)
 # CMake processes toolchain file during first call to project(), so it needs to exist first
 FetchContent_Declare(iotsdk-toolchains
     GIT_REPOSITORY  https://git.gitlab.arm.com/iot/open-iot-sdk/toolchain.git
-    GIT_TAG         126d2092a2325c77fdf36043e931293c62e2ad29
+    GIT_TAG         6133b1de96ca069bcdd2e74876e62a338bf5c928
     SOURCE_DIR      ${CMAKE_BINARY_DIR}/toolchains
 )
 FetchContent_MakeAvailable(iotsdk-toolchains)
@@ -29,9 +29,15 @@ set(TS_TARGET "Corstone-300" CACHE STRING "Hardware target of the Total Solution
 if (${TS_TARGET} STREQUAL "Corstone-300")
     set(TFM_PLATFORM_LOCAL_PATH "bsp/tf_m_targets/arm/mps3/an547")
     set(MDH_PLATFORM "ARM_AN552_MPS3")
+    set(ML_TARGET_SUBSYSTEM "sse-300")
+    set(ETHOS_U_NPU_CONFIG_ID "H128")
+    set(ETHOSU_TARGET_NPU_CONFIG "ethos-u55-128")
 elseif(${TS_TARGET} STREQUAL "Corstone-310")
     set(TFM_PLATFORM_LOCAL_PATH "bsp/tf_m_targets/arm/mps3/corstone_polaris")
     set(MDH_PLATFORM "ARM_AN555_MPS3")
+    set(ML_TARGET_SUBSYSTEM "sse-310")
+    set(ETHOS_U_NPU_CONFIG_ID "H256")
+    set(ETHOSU_TARGET_NPU_CONFIG "ethos-u55-256")
 else()
     message(FATAL_ERROR "Invalid TS_TARGET (${TS_TARGET}) set. It should be Corstone-300 or Corstone-310")
 endif()
@@ -45,7 +51,7 @@ endif()
 FetchContent_Declare(
   open_iot_sdk
   GIT_REPOSITORY https://git.gitlab.arm.com/iot/open-iot-sdk/sdk.git
-  GIT_TAG        bf11e35384e87f055ba2932f03eab09253186dcb
+  GIT_TAG        e71066cfbe4e1dc21bcf0a88840ea8e88625de24
 )
 
 # Declare the Open IoT SDK configuration flags
@@ -53,6 +59,9 @@ if(${RTOS} STREQUAL "FREERTOS")
   set(IOTSDK_FREERTOS ON)
 elseif(${RTOS} STREQUAL "RTX")
   set(IOTSDK_CMSIS_RTX ON)
+elseif(${RTOS} STREQUAL "THREADX")
+  set(IOTSDK_THREADX ON)
+  set(IOTSDK_THREADX_CDI_PORT ON)
 endif()
 
 set(IOTSDK_TFM ON)
@@ -61,9 +70,7 @@ set(IOTSDK_CMSIS_RTOS_API ON)
 set(IOTSDK_MDH_ARM ON)
 set(FETCHCONTENT_QUIET OFF)
 set(TFM_PLATFORM "${CMAKE_CURRENT_SOURCE_DIR}/${TFM_PLATFORM_LOCAL_PATH}")
-set(TFM_PSA_API OFF)
 set(TFM_PARTITION_FIRMWARE_UPDATE ON)
-set(TFM_LIB_MODEL ON)
 set(CONFIG_TFM_ENABLE_FPU ON)
 set(IOTSDK_MBEDTLS ON)
 if(${CLOUD_CLIENT} STREQUAL "AWS")
@@ -78,8 +85,13 @@ set(IOTSDK_LWIP_CMSIS_IP_NETWORK ON)
 set(IOTSDK_EXAMPLES OFF)
 
 # Extra arguments for TF-M and ML
-set(TFM_CMAKE_ARGS "-DNS=ON;-DPLATFORM_DEFAULT_UART_STDOUT=ON;-DMCUBOOT_SIGNATURE_KEY_LEN=2048;-DTFM_PARTITION_AUDIT_LOG=ON;-DITS_MAX_ASSET_SIZE=1300;-DCRYPTO_ENGINE_BUF_SIZE=0x8000;-DMCUBOOT_LOG_LEVEL=INFO;-DTFM_SPM_LOG_LEVEL=TFM_SPM_LOG_LEVEL_INFO")
-set(ML_CMAKE_ARGS "-Dkws_LABELS_TXT_FILE=resources/kws/labels/ds_cnn_labels.txt;-Dkws_MODEL_TFLITE_PATH=resources_downloaded/kws/ds_cnn_clustered_int8_vela_H128.tflite;-DUSE_CASE_BUILD=kws;-Dkws_ACTIVATION_BUF_SZ=0x00400000")
+set(TFM_CMAKE_ARGS "-DNS=ON;-DPLATFORM_DEFAULT_UART_STDOUT=ON;-DMCUBOOT_SIGNATURE_KEY_LEN=2048;-DITS_MAX_ASSET_SIZE=1300;-DCRYPTO_ENGINE_BUF_SIZE=0x8000;-DMCUBOOT_LOG_LEVEL=INFO;-DTFM_SPM_LOG_LEVEL=TFM_SPM_LOG_LEVEL_INFO")
+set(ML_CMAKE_ARGS "-DTARGET_SUBSYSTEM=${ML_TARGET_SUBSYSTEM};-DETHOS_U_NPU_CONFIG_ID=${ETHOS_U_NPU_CONFIG_ID};-DETHOSU_TARGET_NPU_CONFIG=${ETHOSU_TARGET_NPU_CONFIG}")
+set(ML_TARGETS cmsis-dsp timing_adapter tensorflow_build kws asr)
+
+# Apply ML patch to use tiny asr model
+find_package(Git)
+set(ML_PATCH_COMMAND ${GIT_EXECUTABLE} apply "${PRJ_DIR}/lib/ml-kit/ml-embedded-evaluation-kit.patch" || true)
 
 # Set library to std
 set(MBED_C_LIB "std")
@@ -87,9 +99,9 @@ set(MBED_C_LIB "std")
 # Set FVP variant
 set(VARIANT "FVP")
 
-# Apply TF-M patch
-find_package(Git)
-set(ML_PATCH_COMMAND ${GIT_EXECUTABLE} apply "${PRJ_DIR}/patches/ml-embedded-evaluation-kit.patch" || true)
+# ThreadX (if enabled) will use TX_USER_FILE to locate its configuration file
+# Note that this must be set before the IoT SDK is added
+set(TX_USER_FILE "${PRJ_DIR}/bsp/threadx-config/tx_user.h")
 
 # Make the Open IoT SDK available
 FetchContent_MakeAvailable(open_iot_sdk)
@@ -147,10 +159,7 @@ if(TARGET freertos-kernel)
   # Patch the FreeRTOS target to match config requirements
   target_include_directories(freertos-kernel
       INTERFACE
-          ${PRJ_DIR}/bsp/aws_configs
           ${PRJ_DIR}/bsp/freertos-config
-          ${PRJ_DIR}/bsp/freertos-platform
-          ${PRJ_DIR}/kws/include
   )
 endif()
 
@@ -177,6 +186,11 @@ elseif(TARGET cmsis-rtx)
             cmsis-rtx
             cmsis-rtos-api
             cmsis-rtx-freertos-alloc-wrapper
+    )
+elseif(TARGET threadx-cdi-port)
+    target_link_libraries(cmsis-rtos-implementation
+        INTERFACE
+            threadx-cdi-port
     )
 endif()
 
@@ -205,24 +219,59 @@ target_compile_definitions(mcu-driver-hal
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_custom_target(database COMMAND ${CMAKE_COMMAND} -E copy_if_different "${INT_DIR}/compile_commands.json" "${CMAKE_BINARY_DIR}")
 
-# handle libraries
-set(MQTT_CONFIG_PATH ${PRJ_DIR}/bsp/aws_configs)
-set(HTTP_CONFIG_PATH ${PRJ_DIR}/bsp/aws_configs)
-set(PKCS11_CONFIG_PATH ${PRJ_DIR}/bsp/aws_configs)
-set(MBEDTLS_CONFIG_PATH ${PRJ_DIR}/bsp/aws_libraries/3rdparty/mbedtls_config)
-
 if(${CLOUD_CLIENT} STREQUAL "AWS")
   add_subdirectory(lib/AWS)
 endif()
 add_subdirectory(bsp)
+add_subdirectory(lib/SpeexDSP)
+add_subdirectory(lib/ml-kit)
 
 # Setup Target
 
 set(CMAKE_EXECUTABLE_SUFFIX ${EXE_SUFFIX})
 
+# Cloud client setup
+if(${CLOUD_CLIENT} STREQUAL "AWS")
+
+    # Configure AWS libraries
+    target_include_directories(coreHTTP-config
+        INTERFACE
+            ${PRJ_DIR}/lib/AWS/aws_libraries/logging/include/
+    )
+    target_include_directories(coreMQTT-config
+        INTERFACE
+            ${PRJ_DIR}/lib/AWS/aws_libraries/logging/include/
+    )
+    target_link_libraries(coreMQTT-config
+        INTERFACE
+            cmsis-rtos-api
+            aws-configs
+    )
+    target_link_libraries(coreHTTP-config
+        INTERFACE
+            cmsis-rtos-api
+            aws-configs
+    )
+elseif(${CLOUD_CLIENT} STREQUAL "AZURE")
+
+    # Azure SDK config
+    # Provides NTP implementation of time() function to Azure SDK platform library
+    target_link_libraries(azure-iot-sdk-platform
+        PUBLIC
+            azure-sdk-ntp-time
+    )
+
+    # Provides LwIP socket implementation to Azure SDK platform library
+    target_link_libraries(azure-iot-sdk-platform
+        PUBLIC
+            lwip-sockets
+    )
+endif()
+
 # Add examples targets
-add_subdirectory(kws)
-add_subdirectory(blinky)
+add_subdirectory(examples/speech)
+add_subdirectory(examples/keyword)
+add_subdirectory(examples/blinky)
 
 # Copy tf-m binaries at the root
 FetchContent_GetProperties(tf-m)

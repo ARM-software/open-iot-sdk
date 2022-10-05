@@ -17,30 +17,25 @@ add_library(AWS-extra STATIC EXCLUDE_FROM_ALL)
 
 target_include_directories(AWS-extra
     PUBLIC
-        "${PRJ_DIR}/bsp/aws_libraries/3rdparty/jsmn"
-        "${PRJ_DIR}/bsp/aws_libraries/3rdparty/mbedtls_config"
-        "${PRJ_DIR}/bsp/aws_libraries/3rdparty/mbedtls_utils"
-        "${PRJ_DIR}/bsp/aws_libraries/3rdparty/lwip_osal/include"
-        "${PRJ_DIR}/bsp/aws_libraries/abstractions/mqtt_agent/include"
-        "${PRJ_DIR}/bsp/aws_libraries/abstractions/platform/include"
-        "${PRJ_DIR}/bsp/aws_libraries/abstractions/platform/include/platform"
-        "${PRJ_DIR}/bsp/aws_libraries/abstractions/platform/include/types"
-        "${PRJ_DIR}/bsp/aws_libraries/abstractions/secure_sockets/include"
-        "${PRJ_DIR}/bsp/aws_libraries/abstractions/transport/secure_sockets"
-        "${PRJ_DIR}/bsp/aws_libraries/c_sdk/standard/common/include"
-        "${PRJ_DIR}/bsp/aws_libraries/c_sdk/standard/common/include/types"
-        "${PRJ_DIR}/bsp/aws_libraries/c_sdk/standard/mqtt/include"
-        "${PRJ_DIR}/bsp/aws_libraries/c_sdk/standard/mqtt/include/types"
-        "${PRJ_DIR}/bsp/aws_libraries/c_sdk/standard/mqtt/src/private"
-        "${PRJ_DIR}/bsp/aws_libraries/demos/common/mqtt_demo_helpers"
-        "${PRJ_DIR}/bsp/aws_libraries/demos/common/mqtt_subscription_manager"
-        "${PRJ_DIR}/bsp/aws_libraries/demos/coreMQTT_Agent"
-        "${PRJ_DIR}/bsp/aws_libraries/demos/dev_mode_key_provisioning/include"
-        "${PRJ_DIR}/bsp/aws_libraries/demos/network_manager"
-        "${PRJ_DIR}/bsp/aws_libraries/freertos_kernel/include"
-        "${PRJ_DIR}/bsp/aws_libraries/freertos_plus/standard/tls/include"
-        "${PRJ_DIR}/kws"
-        "${PRJ_DIR}/kws/include"
+        "aws_libraries/abstractions/mqtt_agent/include"
+        "aws_libraries/abstractions/platform/include"
+        "aws_libraries/abstractions/platform/include/platform"
+        "aws_libraries/abstractions/platform/include/types"
+        "aws_libraries/abstractions/secure_sockets/include"
+        "aws_libraries/abstractions/transport/secure_sockets"
+        "aws_libraries/c_sdk/standard/common/include"
+        "aws_libraries/c_sdk/standard/common/include/types"
+        "aws_libraries/c_sdk/standard/mqtt/include"
+        "aws_libraries/c_sdk/standard/mqtt/include/types"
+        "aws_libraries/c_sdk/standard/mqtt/src/private"
+        "aws_libraries/demos/common/mqtt_demo_helpers"
+        "aws_libraries/demos/common/mqtt_subscription_manager"
+        "aws_libraries/demos/coreMQTT_Agent"
+        "aws_libraries/demos/dev_mode_key_provisioning/include"
+        "aws_libraries/demos/network_manager"
+        "aws_libraries/freertos_kernel/include"
+        "aws_libraries/freertos_plus/standard/tls/include"
+        "aws_libraries/freertos_plus/standard/crypto/include"
         "${TFM_PLATFORM_TARGET_DIR}/arm/mps3/an547"
         "${TFM_PLATFORM_TARGET_DIR}/arm/mps3/an547/cmsis_drivers"
         "${TFM_PLATFORM_TARGET_DIR}/arm/mps3/an547/cmsis_drivers/config"
@@ -58,49 +53,53 @@ target_include_directories(AWS-extra
 target_sources(AWS-extra
     PRIVATE
         # OTA
-        "${PRJ_DIR}/kws/ota/ota_demo_core_mqtt.c"
-        "${PRJ_DIR}/kws/ota/ota_pal_psa/version/application_version.c"
-        "${PRJ_DIR}/kws/ota/ota_pal_psa/ota_pal.c"
-        "${PRJ_DIR}/kws/ota/provision/ota_provision.c"
+        "ota/ota_demo_core_mqtt.c"
+        "ota/ota_pal_psa/version/application_version.c"
+        "ota/ota_pal_psa/ota_pal.c"
+        "ota/provision/ota_provision.c"
 
         # MQTT agent
-        "${PRJ_DIR}/bsp/aws_libraries/abstractions/mqtt_agent/freertos_agent_message.c"
-        "${PRJ_DIR}/bsp/aws_libraries/abstractions/mqtt_agent/freertos_command_pool.c"
+        "aws_libraries/abstractions/mqtt_agent/freertos_agent_message.c"
+        "aws_libraries/abstractions/mqtt_agent/freertos_command_pool.c"
 
         # common
-        "${PRJ_DIR}/bsp/aws_libraries/c_sdk/standard/common/iot_device_metrics.c"
-        "${PRJ_DIR}/bsp/aws_libraries/c_sdk/standard/common/iot_init.c"
-        "${PRJ_DIR}/bsp/aws_libraries/c_sdk/standard/common/iot_static_memory_common.c"
-        "${PRJ_DIR}/bsp/aws_libraries/c_sdk/standard/common/taskpool/iot_taskpool.c"
-        "${PRJ_DIR}/bsp/aws_libraries/c_sdk/standard/common/taskpool/iot_taskpool_static_memory.c"
+        "aws_libraries/c_sdk/standard/common/iot_device_metrics.c"
+        "aws_libraries/c_sdk/standard/common/iot_init.c"
+        "aws_libraries/c_sdk/standard/common/iot_static_memory_common.c"
+        "aws_libraries/c_sdk/standard/common/taskpool/iot_taskpool.c"
+        "aws_libraries/c_sdk/standard/common/taskpool/iot_taskpool_static_memory.c"
 
         # Logging
-        "${PRJ_DIR}/bsp/aws_libraries/logging/iot_logging.c"
-        "${PRJ_DIR}/bsp/aws_libraries/logging/iot_logging_task_dynamic_buffers.c"
+        "aws_libraries/logging/iot_logging.c"
+        "aws_libraries/logging/iot_logging_task_dynamic_buffers.c"
 
         #FreeRTOS abstraction
-        "${PRJ_DIR}/bsp/aws_libraries/abstractions/platform/freertos/iot_metrics.c"
-        "${PRJ_DIR}/bsp/aws_libraries/abstractions/platform/freertos/iot_network_freertos.c"
-        "${PRJ_DIR}/bsp/aws_libraries/abstractions/platform/freertos/iot_threads_freertos.c"
+        "aws_libraries/abstractions/platform/freertos/iot_metrics.c"
+        "aws_libraries/abstractions/platform/freertos/iot_network_freertos.c"
+        "aws_libraries/abstractions/platform/freertos/iot_threads_freertos.c"
 
         # Clock abstraction
-        "${PRJ_DIR}/bsp/aws_libraries/abstractions/platform/freertos/iot_clock_freertos.c"
+        "aws_libraries/abstractions/platform/freertos/iot_clock_freertos.c"
 
         # Mbedtls utils and error
-        "${PRJ_DIR}/bsp/aws_libraries/3rdparty/mbedtls_utils/mbedtls_error.c"
-        "${PRJ_DIR}/bsp/aws_libraries/3rdparty/mbedtls_utils/mbedtls_utils.c"
+        "aws_libraries/3rdparty/mbedtls_utils/mbedtls_error.c"
+        "aws_libraries/3rdparty/mbedtls_utils/mbedtls_utils.c"
+
+        # Additional crypto 
+        "${PRJ_DIR}/lib/AWS/aws_libraries/freertos_plus/standard/crypto/src/iot_crypto.c"
+        "${PRJ_DIR}/lib/AWS/aws_libraries/freertos_plus/standard/tls/src/iot_tls.c"
 
         # Secure socket
-        "${PRJ_DIR}/bsp/aws_libraries/abstractions/transport/secure_sockets/transport_secure_sockets.c"
-        "${PRJ_DIR}/bsp/aws_libraries/abstractions/secure_sockets/lwip/iot_secure_sockets.c"
+        "aws_libraries/abstractions/transport/secure_sockets/transport_secure_sockets.c"
+        "aws_libraries/abstractions/secure_sockets/lwip/iot_secure_sockets.c"
 
         # Demo code
-        "${PRJ_DIR}/bsp/aws_libraries/demos/demo_runner/iot_demo_runner.c"
-        "${PRJ_DIR}/bsp/aws_libraries/demos/demo_runner/iot_demo_freertos.c"
-        "${PRJ_DIR}/bsp/aws_libraries/demos/common/mqtt_subscription_manager/mqtt_subscription_manager.c"
-        "${PRJ_DIR}/bsp/aws_libraries/demos/common/ota_demo_helpers/ota_application_version.c"
-        "${PRJ_DIR}/bsp/aws_libraries/demos/dev_mode_key_provisioning/src/aws_dev_mode_key_provisioning.c"
-        "${PRJ_DIR}/bsp/aws_libraries/demos/network_manager/aws_iot_network_manager.c"
+        "aws_libraries/demos/demo_runner/iot_demo_runner.c"
+        "aws_libraries/demos/demo_runner/iot_demo_freertos.c"
+        "aws_libraries/demos/common/mqtt_subscription_manager/mqtt_subscription_manager.c"
+        "aws_libraries/demos/common/ota_demo_helpers/ota_application_version.c"
+        "aws_libraries/demos/dev_mode_key_provisioning/src/aws_dev_mode_key_provisioning.c"
+        "aws_libraries/demos/network_manager/aws_iot_network_manager.c"
 )
 
 target_link_libraries(AWS-extra
@@ -119,4 +118,5 @@ target_link_libraries(AWS-extra
     mcu-driver-bootstrap
     mcu-driver-hal
     cmsis-rtos-api
+    mbedtls-config
 )
