@@ -58,7 +58,7 @@
 
 /* Size of a Secure and of a Non-secure image */
 #define FLASH_S_PARTITION_SIZE          (0x60000) /* S  partition: 384 KB */
-#define FLASH_NS_PARTITION_SIZE         (0x200000) /* NS partition: 2MB */
+#define FLASH_NS_PARTITION_SIZE         (0x320000) /* NS partition: 3.2MB */
 #define FLASH_MAX_PARTITION_SIZE        ((FLASH_S_PARTITION_SIZE >   \
                                           FLASH_NS_PARTITION_SIZE) ? \
                                          FLASH_S_PARTITION_SIZE :    \
@@ -79,7 +79,7 @@
  * swapping.
  */
 #define FLASH_AREA_BL2_OFFSET      (0x0)
-#define FLASH_AREA_BL2_SIZE        (ITCM_SIZE) /* 256 KB */
+#define FLASH_AREA_BL2_SIZE        (SRAM_SIZE) /* 2MB */
 
 #if !defined(MCUBOOT_IMAGE_NUMBER) || (MCUBOOT_IMAGE_NUMBER == 1)
 /* Secure + Non-secure image primary slot */
@@ -124,7 +124,8 @@
 /* Scratch area */
 #define FLASH_AREA_SCRATCH_ID      (FLASH_AREA_3_ID + 1)
 #define FLASH_AREA_SCRATCH_OFFSET  (FLASH_AREA_3_OFFSET + FLASH_AREA_3_SIZE)
-#define FLASH_AREA_SCRATCH_SIZE    (FLASH_MAX_PARTITION_SIZE)
+// Note: The scratch area is not used, it is not set to 0 to accomodate TF-M
+#define FLASH_AREA_SCRATCH_SIZE    (FLASH_S_PARTITION_SIZE)
 /* The maximum number of status entries supported by the bootloader. */
 #define MCUBOOT_STATUS_MAX_ENTRIES (FLASH_MAX_PARTITION_SIZE / \
                                     FLASH_AREA_SCRATCH_SIZE)

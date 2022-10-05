@@ -3,26 +3,28 @@
 exclude: >
     (?x)^(
         bsp/aws_configs/|
-        bsp/aws_libraries/|
-        bsp/freertos-platform/|
+        bsp/platform/|
         bsp/freertos-config/|
         bsp/default_credentials/|
         bsp/tf_m_targets/|
-        kws/ota/
+        examples/speech/include/dsp|
+        examples/speech/source/dsp|
+        lib/
     )
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v3.2.0
+    rev: v4.3.0
     hooks:
     -   id: trailing-whitespace
     -   id: end-of-file-fixer
     -   id: check-added-large-files
+        args: ['--maxkb=2500']
 -   repo: https://github.com/pre-commit/mirrors-clang-format
-    rev: v13.0.0
+    rev: v14.0.4
     hooks:
-    -   id: clang-format
--   repo: https://git.gitlab.oss.arm.com/engineering/iot-m-sw/open-iot-sdk/tools/developer-tools.git
-    rev: 5fecffb086eb00767e9763f242c91dda5020a4cf
+    -   id: clang-format -i
+-   repo: https://git.gitlab.arm.com/iot/open-iot-sdk/tools/developer-tools.git
+    rev: 777223b9a7d574cfa773f845ea4cad2f8d677123
     hooks:
     -   id: cppcheck
     -   id: banned-api

@@ -6,8 +6,9 @@
 #ifndef RTOS_CONFIG_H
 #define RTOS_CONFIG_H
 
-#include <stddef.h>
 #include "basetypes.h"
+
+#include <stddef.h>
 
 #define configPRINT_STRING(X) print_log(X) // used by vLoggingPrintf
 #define configPRINT(X)        print_log X  // used by dumb logging
@@ -19,7 +20,7 @@
 #define configTOTAL_HEAP_SIZE            512000 // should be enough
 #define configAPPLICATION_ALLOCATED_HEAP 1
 
-#define configENABLE_FPU               0
+#define configENABLE_FPU               1
 #define configENABLE_MPU               0
 #define configENABLE_TRUSTZONE         0
 #define configRUN_FREERTOS_SECURE_ONLY 0

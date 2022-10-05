@@ -25,7 +25,6 @@ Usage: $0 <command> [command options]
 
 Commands:
     help                        Show this help
-    bootstrap,bs                Bootstrap repository
     build,b         <example>   Build <example>
     run,r           <example>   Run example
     build-n-run,br  <example>   Build and run example
@@ -47,19 +46,16 @@ case "$1" in
         show_usage
         exit 0
     ;;
-    bootstrap|bs)
-        "$SCRIPTS/bootstrap.sh"
-    ;;
     build|b)
-        _assert "$2" "blinky|kws"
+        _assert "$2" "blinky|keyword|speech|mlia"
         "$SCRIPTS/build.sh" "${@:2}"
     ;;
     run|r)
-        _assert "$2" "blinky|kws"
+        _assert "$2" "blinky|keyword|speech|mlia"
         "$SCRIPTS/run.sh" "${@:2}"
     ;;
     build-n-run|br)
-        _assert "$2" "blinky|kws"
+        _assert "$2" "blinky|keyword|speech|mlia"
         "$SCRIPTS/build.sh" "${@:2}" && "$SCRIPTS/run.sh" "${@:2}"
     ;;
     pack|p)

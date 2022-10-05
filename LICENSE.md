@@ -9,5 +9,4 @@ Folders containing files under different permissive license than Apache 2.0 are 
 - [bsp/tf_m_targets](https://git.trustedfirmware.org/TF-M/trusted-firmware-m.git) - BSD-3-Clause
 - [lib/VHT](https://github.com/ARM-software/VHT) - Apache-2.0
 - [Open IoT SDK](https://gitlab.oss.arm.com/engineering/iot-m-sw/open-iot-sdk/sdk) - Apache-2.0
-- [bsp/freertos-platform](bsp/freertos-platform/portmacro.h) - Apache-2.0
 - [bsp/freertos-platform/portmacro.h](bsp/freertos-platform/portmacro.h) - MIT

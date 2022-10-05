@@ -11,7 +11,8 @@
 #define SEC_ETHOS_U55_TA1_BASE (0x48103200) /* Ethos-U55's timing adapter 1 base address */
 
 /* TA0 configuration */
-#define TA0_BASE      SEC_ETHOS_U55_TA0_BASE
+// Disabled for CS310 as the TA is not available
+// #define TA0_BASE      SEC_ETHOS_U55_TA0_BASE
 #define TA0_MAXR      0
 #define TA0_MAXW      0
 #define TA0_MAXRW     0
@@ -27,7 +28,8 @@
 #define TA0_HISTCNT   0
 
 /* TA1 configuration */
-#define TA1_BASE      SEC_ETHOS_U55_TA1_BASE
+// Disabled for CS310 as the TA is not available
+// #define TA1_BASE      SEC_ETHOS_U55_TA1_BASE
 #define TA1_MAXR      0
 #define TA1_MAXW      0
 #define TA1_MAXRW     0
