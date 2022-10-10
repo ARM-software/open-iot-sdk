@@ -1,0 +1,39 @@
+# Copyright (c) 2021 Arm Limited and Contributors. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+include:
+  - project: '${OPEN_IOT_SDK_BASE_GROUP}/tools/developer-tools'
+    ref: 2dca7c7467676667e6fd69b1e0a6840b81a9a7b7
+    file:
+      - '/templates/pipeline-baseline-sdk.yml'
+      - '/templates/sync-public/pipeline-sync-public.yml'
+
+variables:
+  GIT_CLONE_PATH: /builds/workspace
+
+workflow:
+  rules:
+    - if: $CI_MERGE_REQUEST_ID
+    - if: $CI_COMMIT_REF_NAME =~ /^release-.*/
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+stages:
+  - quality_check
+  - build
+
+build gcc10:
+  stage: build
+  trigger:
+    include: .gitlab/ci/pipeline/build-gcc.yml
+    strategy: depend
+
+build armc6:
+  stage: build
+  trigger:
+    include: .gitlab/ci/pipeline/build-armclang.yml
+    strategy: depend
+
+mirror:
+  extends: .sync-public
+  variables:
+    SYNC_DESTINATION : 'https://${GITLAB_USER_ID}:${PUBLIC_SDK_TOKEN}@git.gitlab.arm.com/iot/open-iot-sdk/examples/${CI_PROJECT_NAME}.git'
