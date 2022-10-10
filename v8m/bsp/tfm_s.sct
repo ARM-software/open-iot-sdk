@@ -1,0 +1,149 @@
+/*
+ * Copyright (c) 2021-2022 Arm Limited. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+LR_CODE ((0x38000000) + ((((0)) + (0x400)))) (((0x60000) - (0x400) - (0x800)) - (0x340)) {
+
+
+    ER_VECTORS ((0x38000000) + ((((0)) + (0x400)))) {
+        *.o (RESET +First)
+    ER_TFM_CODE +0 {
+        *startup*(.text*)
+        *libplatform_s* (.text*, .rodata*)
+        *libtfm_spm* (+RO)
+    }
+
+
+    TFM_UNPRIV_CODE +0 ALIGN 32 {
+        *(SFN)
+        * (+RO)
+    }
+
+
+    TFM_SP_LOAD_LIST +0 ALIGN 4 {
+        *(.part_load)
+    }
+
+    TFM_PSA_CODE_START +0 ALIGN 32 EMPTY 0x0 {
+    }
+
+    TFM_PSA_ROT_LINKER +0 ALIGN 32 {
+        *tfm_psa_rot_partition* (+RO-CODE, +RO-DATA)
+        *libplatform_s* (TFM_*_PSA-ROT_ATTR_FN)
+        *.o (TFM_*_PSA-ROT_ATTR_FN)
+    }
+
+    TFM_PSA_CODE_END +0 ALIGN 32 EMPTY 0x0 {
+    }
+
+    TFM_APP_CODE_START +0 ALIGN 32 EMPTY 0x0 {
+    }
+
+    TFM_APP_ROT_LINKER +0 ALIGN 32 {
+        *tfm_app_rot_partition* (+RO-CODE, +RO-DATA)
+        *libplatform_s* (TFM_*_APP-ROT_ATTR_FN)
+        *.o (TFM_*_APP-ROT_ATTR_FN)
+    }
+
+    TFM_APP_CODE_END +0 ALIGN 32 EMPTY 0x0 {
+    }
+
+    TFM_SECURE_DATA_START (0x30000000) {
+    }
+
+    TFM_SHARED_DATA +0 ALIGN 32 OVERLAY EMPTY (0x400) {
+    }
+
+    ARM_LIB_STACK_MSP +0 ALIGN 32 OVERLAY EMPTY (0x0000800) {
+    }
+
+    ARM_LIB_STACK +0 ALIGN 32 EMPTY (0x0000800) - 0x8 {
+    }
+
+    ARM_LIB_STACK_SEAL +0 EMPTY 0x8 {
+    }
+
+    TFM_SECURE_STACK +0 ALIGN 128 EMPTY 0x2000 {
+    }
+
+    TFM_APP_RW_STACK_START +0 ALIGN 32 EMPTY 0x0 {
+    }
+
+    TFM_APP_ROT_LINKER_DATA +0 ALIGN 32 {
+        *tfm_app_rot_partition* (+RW +ZI)
+        *.o(TFM_*_APP-ROT_ATTR_RW)
+        *.o(TFM_*_APP-ROT_ATTR_ZI)
+    }
+
+    TFM_APP_RW_STACK_END +0 ALIGN 32 EMPTY 0x0 {
+    }
+
+    ARM_LIB_HEAP +0 ALIGN 8 EMPTY (0x0001000) {
+    }
+
+    ER_TFM_DATA +0 {
+        * (+RW +ZI)
+    }
+
+    ER_PART_RT_POOL +0 ALIGN 4 {
+        *(.bss.part_runtime)
+    }
+
+    ER_SERV_RT_POOL +0 ALIGN 4 {
+        *(.bss.serv_runtime)
+    }
+
+    TFM_PSA_RW_STACK_START +0 ALIGN 32 EMPTY 0x0 {
+    }
+
+    TFM_PSA_ROT_LINKER_DATA +0 ALIGN 32 {
+        *tfm_psa_rot_partition* (+RW +ZI)
+        *.o(TFM_*_PSA-ROT_ATTR_RW)
+        *.o(TFM_*_PSA-ROT_ATTR_ZI)
+    }
+
+    TFM_PSA_RW_STACK_END +0 ALIGN 32 EMPTY 0x0 {
+    }
+
+    SRAM_WATERMARK +0 EMPTY 0x0 {
+    }
+
+    ScatterAssert(ImageLimit(SRAM_WATERMARK) <= (0x30000000) + ((0x00020000) * (0x4)))
+}
+
+
+ER_VENEER ((((0x38000000) + ((((0)) + (0x400)))) + (((0x60000) - (0x400) - (0x800)) - (0x340)) - 1) + 1) {
+    CMSE_VENEER ((((0x38000000) + ((((0)) + (0x400)))) + (((0x60000) - (0x400) - (0x800)) - (0x340)) - 1) + 1) (0x340) {
+        *(Veneer$$CMSE)
+    }
+}
+
+/* The Limit of the VENEER_ALIGN region should be 32 bytes aligned  so that
+* the SAU can set this region as Non-Secure Callable.
+*/
+VENEER_ALIGN +0 ALIGN 32 EMPTY 0x0 {
+}
+
+
+LR_NS_PARTITION ((0x28000000) + (((0) + (0x60000)))) {
+    ER_NS_PARTITION ((0x28000000) + (((0) + (0x60000)))) UNINIT ((0x320000)) {
+    }
+}
+
+
+LR_SECONDARY_PARTITION ((0x28000000) + (((((0) + ((0x60000))) + ((0x320000)))))) {
+    ER_SECONDARY_PARTITION ((0x28000000) + (((((0) + ((0x60000))) + ((0x320000)))))) UNINIT ((0x60000) + (0x320000)) {
+    }
+}
