@@ -6,7 +6,7 @@ add_library(ml-kit INTERFACE)
 
 target_include_directories(ml-kit
     INTERFACE
-        ${ml-embedded-evaluation-kit_SOURCE_DIR}/dependencies/cmsis/CMSIS/DSP/Include
+        ${ml-embedded-evaluation-kit_SOURCE_DIR}/dependencies/cmsis-dsp/Include
         ${ml-embedded-evaluation-kit_SOURCE_DIR}/dependencies/core-driver/include
         ${ml-embedded-evaluation-kit_SOURCE_DIR}/dependencies/tensorflow
         ${ml-embedded-evaluation-kit_SOURCE_DIR}/dependencies/tensorflow/tensorflow/lite/micro
@@ -34,7 +34,7 @@ target_link_options(ml-kit
         ${ml-embedded-evaluation-kit_LIB_DIR}/libethos_u_npu.a
         ${ml-embedded-evaluation-kit_LIB_DIR}/libethosu_core_driver.a
         ${ml-embedded-evaluation-kit_LIB_DIR}/libcommon_api.a
-        ${ml-embedded-evaluation-kit_LIB_DIR}/libtiming_adapter.a
+        $<$<STREQUAL:${TS_TARGET},Corstone-300>:${ml-embedded-evaluation-kit_LIB_DIR}/libtiming_adapter.a>
         ${ml-embedded-evaluation-kit_LIB_DIR}/libarm_math.a
 )
 
@@ -50,7 +50,7 @@ target_compile_definitions(ml-kit
 )
 
 add_dependencies(ml-kit
-    ml-embedded-evaluation-kit
+    build-ml-embedded-evaluation-kit
 )
 
 

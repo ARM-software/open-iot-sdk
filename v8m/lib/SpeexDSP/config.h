@@ -1,3 +1,7 @@
+/* Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /* Libseepx config */
 #ifndef CONFIG_H
 #define CONFIG_H

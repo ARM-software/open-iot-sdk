@@ -18,4 +18,4 @@ import pytest
 
 @pytest.fixture
 def binary_path(build_path):
-    yield build_path + '/examples/speech/speech_signed.bin'
+    yield build_path + "/examples/speech/speech_signed.bin"

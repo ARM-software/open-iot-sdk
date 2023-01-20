@@ -35,21 +35,16 @@ enum {
 static uint32_t *fpgaio_leds = (uint32_t *)0x49302000;
 
 // Events
-typedef enum { UI_EVENT_BLINK, UI_EVENT_ML_STATE_CHANGE } ui_state_event_t;
+typedef enum { UI_EVENT_ML_STATE_CHANGE } ui_state_event_t;
 
 typedef struct {
     ui_state_event_t event;
 } ui_msg_t;
 
-static ui_msg_t blink_event = {UI_EVENT_BLINK};
-
 static ui_msg_t ml_state_change_event = {UI_EVENT_ML_STATE_CHANGE};
 
 // Message queue
 static osMessageQueueId_t ui_msg_queue = NULL;
-
-// Blinking timer
-static osTimerId_t blink_timer = NULL;
 
 void led_on(uint8_t bits)
 {
@@ -64,15 +59,6 @@ void led_off(uint8_t bits)
 void led_toggle(uint8_t bits)
 {
     *fpgaio_leds ^= bits;
-}
-
-static void blink_timer_cb(void *arg)
-{
-    (void)arg;
-    // Schedule blink of the led in the event queue
-    if (osMessageQueuePut(ui_msg_queue, (void *)&blink_event, 0, 0) != osOK) {
-        printf("Failed to send blink_event message to ui_msg_queue\r\n");
-    }
 }
 
 static void ml_change_handler(void *self, ml_processing_state_t new_state)
@@ -156,44 +142,33 @@ void blink_task(void *arg)
         return;
     }
 
-    // Configure the timer
-    blink_timer = osTimerNew(blink_timer_cb, osTimerPeriodic, NULL, NULL);
-    if (!blink_timer) {
-        printf("Create blink timer failed\r\n");
-        return;
-    }
-
     // Connect to the ML processing
     on_ml_processing_change(ml_change_handler, NULL);
 
-    // Setup blinking event
     led_off(LED_ALL);
 
-    // start the blinking timer
-    uint32_t ticks_interval = ((uint64_t)BLINK_TIMER_PERIOD_MS * (uint64_t)osKernelGetTickFreq()) / 1000;
-    osStatus_t res = osTimerStart(blink_timer, ticks_interval);
-    if (res) {
-        printf("osTimerStart failed %d\r\n", res);
-        return;
-    }
-
+    // Toggle is-alive LED and process messages at a fixed interval
+    const uint32_t ticks_interval = BLINK_TIMER_PERIOD_MS * osKernelGetTickFreq() / 1000;
     while (1) {
-        ui_msg_t msg;
-        if (osMessageQueueGet(ui_msg_queue, &msg, NULL, osWaitForever) != osOK) {
-            continue;
+        osStatus_t status = osDelay(ticks_interval);
+        if (status != osOK) {
+            printf("osDelay failed %d\r\n", status);
+            return;
         }
+        led_toggle(LED_ALIVE);
 
-        switch (msg.event) {
-            case UI_EVENT_BLINK:
-                led_toggle(LED_ALIVE);
-                break;
-
-            case UI_EVENT_ML_STATE_CHANGE:
-                process_ml_state_change(get_ml_processing_state());
-                break;
-
-            default:
-                break;
+        // Retrieve any/all existing messages with no delay
+        ui_msg_t msg;
+        while ((status = osMessageQueueGet(ui_msg_queue, &msg, NULL, 0)) == osOK) {
+            switch (msg.event) {
+                case UI_EVENT_ML_STATE_CHANGE:
+                    process_ml_state_change(get_ml_processing_state());
+                    break;
+            }
+        }
+        // The only permitted status at the end is an empty queue
+        if (status != osErrorResource) {
+            printf("osMessageQueueGet failed: %d\r\n", status);
         }
     }
 }

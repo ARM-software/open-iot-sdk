@@ -3,8 +3,8 @@
 
 cmake_minimum_required(VERSION 3.18)
 
-FetchContent_GetProperties(aws-iot-device-sdk)
-FetchContent_GetProperties(tf-m)
+FetchContent_GetProperties(aws-iot-device-sdk-embedded-c)
+FetchContent_GetProperties(trusted-firmware-m)
 
 add_subdirectory(coreMQTT-Agent)
 set(coremqtt-agent_SOURCE_DIR ${coremqtt-agent_SOURCE_DIR} PARENT_SCOPE)
@@ -46,7 +46,7 @@ target_include_directories(AWS-extra
         "${TFM_PLATFORM_TARGET_DIR}/arm/mps3/an547/partition"
         "${TFM_PLATFORM_TARGET_DIR}/arm/mps3/an547/services/src"
         "${TFM_PLATFORM_TARGET_DIR}/arm/mps3/common"
-        "${tf-m_SOURCE_DIR}/interface/include"
+        "${trusted-firmware-m_SOURCE_DIR}/interface/include"
         "${PRJ_DIR}/lib/AWS/ota_for_aws"
 )
 
