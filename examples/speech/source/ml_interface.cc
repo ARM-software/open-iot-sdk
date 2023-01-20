@@ -8,6 +8,7 @@
 #include "AsrClassifier.hpp"
 #include "AsrResult.hpp"
 #include "AudioUtils.hpp"
+#include "BufAttributes.hpp"
 #include "Classifier.hpp"
 #include "Labels.hpp"
 #include "OutputDecode.hpp"
@@ -41,9 +42,7 @@
 #include <vector>
 
 extern "C" {
-#include "fvp_sai.h"
 #include "hal-toolbox/critical_section_api.h"
-#include "hal/sai_api.h"
 }
 
 #include "audio_config.h"
@@ -456,7 +455,7 @@ static int arm_npu_init(void)
     arm_npu_irq_init();
 
     /* Initialise Ethos-U55 device */
-    const void *ethosu_base_address = (void *)(SEC_ETHOS_U55_BASE);
+    const void *ethosu_base_address = reinterpret_cast<const void *>(SEC_ETHOS_U55_BASE);
 
     if (0
         != (err = ethosu_init(&ethosu_drv,         /* Ethos-U55 driver device pointer */
@@ -536,7 +535,7 @@ int ml_interface_init()
 
 void ml_task(void *pvParameters)
 {
-    DSPML *dspMLConnection = (DSPML *)pvParameters;
+    DSPML *dspMLConnection = static_cast<DSPML *>(pvParameters);
 
     ml_mutex = osMutexNew(NULL);
     if (!ml_mutex) {

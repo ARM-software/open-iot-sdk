@@ -34,16 +34,16 @@ int main()
 {
     bsp_serial_init();
 
-    uint32_t ret = tfm_ns_interface_init();
-    if (ret != 0) {
-        printf("tfm_ns_interface_init() failed: %u\r\n", ret);
-        return EXIT_FAILURE;
-    }
-
     printf("Initialising kernel\r\n");
     osStatus_t os_status = osKernelInitialize();
     if (os_status != osOK) {
         printf("osKernelInitialize failed: %d\r\n", os_status);
+        return EXIT_FAILURE;
+    }
+
+    uint32_t ret = tfm_ns_interface_init();
+    if (ret != 0) {
+        printf("tfm_ns_interface_init() failed: %u\r\n", ret);
         return EXIT_FAILURE;
     }
 

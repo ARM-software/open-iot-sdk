@@ -104,12 +104,42 @@ elseif(${CLOUD_CLIENT} STREQUAL "AZURE")
         azure-provisioning-client
         cloud-credentials
     )
+elseif(${CLOUD_CLIENT} STREQUAL "AZURE_NETXDUO")
+    target_sources(speech
+        PRIVATE
+            source/azure_netxduo_demo.c
+            ${PRJ_DIR}/bsp/netxduo-config/nx_azure_iot_cert.c
+            ${PRJ_DIR}/bsp/netxduo-config/nx_azure_iot_ciphersuites.c
+            ${PRJ_DIR}/bsp/netxduo-config/sample_azure_iot_embedded_sdk_connect.c
+    )
+
+    target_include_directories(speech
+        PRIVATE
+            ${APP_CONFIG_CREDENTIALS_PATH}
+    )
+
+    target_include_directories(speech
+        PRIVATE
+            ${PRJ_DIR}/bsp/netxduo-config
+            ${PRJ_DIR}/bsp/aws_libraries/3rdparty/mbedtls_config
+    )
+
+    # final binary
+    target_link_libraries(speech
+        nx-ip-link-mdh
+        mcu-driver-hal
+        iotsdk-serial-retarget
+        iotsdk-emac-factory
+        mbedtls
+        cmsis-rtos-api
+        netxduo
+    )
 endif()
 
 # Copy the result of TF-M build in the top level build directory
 # Convert axf files into bin
 # Sign binaries
-FetchContent_GetProperties(tf-m)
+FetchContent_GetProperties(trusted-firmware-m)
 add_custom_command(
     TARGET
         speech
@@ -129,10 +159,10 @@ add_custom_command(
         ${ARM_ELF2BIN} --bin --output ${CMAKE_CURRENT_BINARY_DIR}/speech_unsigned.bin ${CMAKE_CURRENT_BINARY_DIR}/speech${CMAKE_EXECUTABLE_SUFFIX} --bincombined
 
     COMMAND
-        python3 ${tf-m_BINARY_DIR}/install/image_signing/scripts/wrapper/wrapper.py
+        python3 ${trusted-firmware-m_BINARY_DIR}/install/image_signing/scripts/wrapper/wrapper.py
             -v 0.0.1
             --layout ${PRJ_DIR}/bsp/signing_layout_ns.c
-            -k ${tf-m_BINARY_DIR}/install/image_signing/keys/root-RSA-2048_1.pem
+            -k ${trusted-firmware-m_BINARY_DIR}/install/image_signing/keys/root-RSA-2048_1.pem
             --public-key-format full
             --align 1
             --pad
@@ -143,10 +173,10 @@ add_custom_command(
             ${CMAKE_CURRENT_BINARY_DIR}/speech_signed.bin
 
     COMMAND
-        python3 ${tf-m_BINARY_DIR}/install/image_signing/scripts/wrapper/wrapper.py
+        python3 ${trusted-firmware-m_BINARY_DIR}/install/image_signing/scripts/wrapper/wrapper.py
             -v 0.0.2
             --layout ${PRJ_DIR}/bsp/signing_layout_ns.c
-            -k ${tf-m_BINARY_DIR}/install/image_signing/keys/root-RSA-2048_1.pem
+            -k ${trusted-firmware-m_BINARY_DIR}/install/image_signing/keys/root-RSA-2048_1.pem
             --public-key-format full
             --align 1
             --pad
@@ -160,7 +190,7 @@ add_custom_command(
         openssl dgst -sha256 -binary -out ${CMAKE_CURRENT_BINARY_DIR}/update-digest.bin ${CMAKE_CURRENT_BINARY_DIR}/speech_signed_update.bin
 
     COMMAND
-        openssl pkeyutl -sign -pkeyopt digest:sha256 -pkeyopt rsa_padding_mode:pss -pkeyopt rsa_mgf1_md:sha256 -inkey ${tf-m_BINARY_DIR}/install/image_signing/keys/root-RSA-2048_1.pem -in ${CMAKE_CURRENT_BINARY_DIR}/update-digest.bin -out ${CMAKE_CURRENT_BINARY_DIR}/update-signature.bin
+        openssl pkeyutl -sign -pkeyopt digest:sha256 -pkeyopt rsa_padding_mode:pss -pkeyopt rsa_mgf1_md:sha256 -inkey ${trusted-firmware-m_BINARY_DIR}/install/image_signing/keys/root-RSA-2048_1.pem -in ${CMAKE_CURRENT_BINARY_DIR}/update-digest.bin -out ${CMAKE_CURRENT_BINARY_DIR}/update-signature.bin
 
     COMMAND
         openssl base64 -A -in ${CMAKE_CURRENT_BINARY_DIR}/update-signature.bin -out ${CMAKE_CURRENT_BINARY_DIR}/update-signature.txt

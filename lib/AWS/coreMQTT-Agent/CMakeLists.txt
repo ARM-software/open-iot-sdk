@@ -20,10 +20,10 @@ add_library(coreMQTT-Agent STATIC EXCLUDE_FROM_ALL
 target_include_directories(coreMQTT-Agent
     PUBLIC
         "${PRJ_DIR}/lib/AWS/aws_libraries/logging/include"
-        "${aws-iot-device-sdk_SOURCE_DIR}/libraries/aws/ota-for-aws-iot-embedded-sdk/source/include"
-        "${aws-iot-device-sdk_SOURCE_DIR}/libraries/aws/ota-for-aws-iot-embedded-sdk/source/portable/os"
-        "${aws-iot-device-sdk_SOURCE_DIR}/libraries/standard/coreMQTT/source/include"
-        "${aws-iot-device-sdk_SOURCE_DIR}/libraries/standard/coreMQTT/source/interface"
+        "${aws-iot-device-sdk-embedded-c_SOURCE_DIR}/libraries/aws/ota-for-aws-iot-embedded-sdk/source/include"
+        "${aws-iot-device-sdk-embedded-c_SOURCE_DIR}/libraries/aws/ota-for-aws-iot-embedded-sdk/source/portable/os"
+        "${aws-iot-device-sdk-embedded-c_SOURCE_DIR}/libraries/standard/coreMQTT/source/include"
+        "${aws-iot-device-sdk-embedded-c_SOURCE_DIR}/libraries/standard/coreMQTT/source/interface"
         "${coremqtt-agent_SOURCE_DIR}/source/include"
         "${TFM_PLATFORM_TARGET_DIR}/arm/mps3/an547/device/include"
 )
