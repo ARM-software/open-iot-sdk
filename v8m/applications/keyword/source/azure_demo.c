@@ -439,7 +439,7 @@ void azure_task(void *arg)
                 }
             } break;
             case APP_EVENT_SEND_MSG_OK:
-                printf("Ack message\r\n");
+                printf("Message sent\r\n");
                 break;
             case APP_EVENT_IOT_HUB_CONNECTION_DOWN:
                 iotHubConnected = false;

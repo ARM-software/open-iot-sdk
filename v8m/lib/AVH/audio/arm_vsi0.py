@@ -1,4 +1,5 @@
-# Copyright (c) 2021-2022 Arm Limited. All rights reserved.
+# Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 
 # Virtual Streaming Interface instance 0 Python script: Audio Input
 

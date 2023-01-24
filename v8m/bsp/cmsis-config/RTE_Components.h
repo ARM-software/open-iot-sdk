@@ -7,6 +7,10 @@
 #define RTE_COMPONENTS_H
 
 // TrustZone support
-#define DOMAIN_NS           1
+#define DOMAIN_NS 1
+
+// RTOS options
 #define OS_DYNAMIC_MEM_SIZE (32768 * 3)
+#define OS_ROBIN_ENABLE     0
+
 #endif // RTE_COMPONENTS_H

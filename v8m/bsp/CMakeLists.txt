@@ -82,13 +82,11 @@ target_link_libraries(ts-bsp
 )
 
 # OS alloc wrapper
-if (TARGET cmsis-rtx)
-    add_library(cmsis-rtx-freertos-alloc-wrapper STATIC)
-    target_sources(cmsis-rtx-freertos-alloc-wrapper
-        PRIVATE
-            cmsis-config/rtx-alloc.c
-    )
-endif()
+add_library(heap-alloc-wrapper STATIC)
+target_sources(heap-alloc-wrapper
+    PRIVATE
+        cmsis-config/heap-alloc.c
+)
 
 
 # Add credentials library
@@ -115,10 +113,10 @@ elseif(${TS_TARGET} STREQUAL "Corstone-310")
     mdh_set_linker_script(startup "${PRJ_DIR}/bsp/an555_ns.sct" ${link_definitions_file})
 endif()
 
-FetchContent_GetProperties(tf-m)
+FetchContent_GetProperties(trusted-firmware-m)
 target_include_directories(startup
     PRIVATE
-        "${tf-m_SOURCE_DIR}/platform/include"
+        "${trusted-firmware-m_SOURCE_DIR}/platform/include"
 )
 
 target_link_libraries(startup

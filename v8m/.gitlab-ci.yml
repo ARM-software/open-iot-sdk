@@ -1,13 +1,16 @@
+# Copyright (c) 2021-2022 Arm Limited and Contributors. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+include:
+  - project: '${OPEN_IOT_SDK_BASE_GROUP}/tools/developer-tools'
+    ref: cc5fd9dcb0c9d72fd2ce15e843d5e28b543bde86
+    file:
+      - '/templates/pipeline-baseline-sdk.yml'
+      - '/templates/sync-public/pipeline-sync-public.yml'
+      - '/templates/autobot/pipeline-autobot.yml'
+
 variables:
   DOCKER_TAG: "$CI_COMMIT_REF_SLUG"
-  GIT_SUBMODULE_STRATEGY: none
-  AWS_REGION: "$AWS_REGION"
-  OTA_ROLE_NAME: "$OTA_ROLE_NAME"
-  OTA_CERT_ID: "$OTA_CERT_ID"
-  OTA_ENDPOINT: "$OTA_ENDPOINT"
-  OTA_CLIENT_CERT: "$OTA_CLIENT_CERT"
-  OTA_CLIENT_PRIV: "$OTA_CLIENT_PRIV"
-  OTA_CLIENT_PUB: "$OTA_CLIENT_PUB"
   # Default DOCKER_TAG, set this accordingly to trigger against
   # another AVH version
   AVH_DOCKER_TAG: "11.18.29"
@@ -15,30 +18,38 @@ variables:
   # Default AWS_AMI_VERSION, set this accordingly to trigger against
   # another AMI VERSION
   AWS_AMI_VERSION: "1.3.0"
+  SYNC_DESTINATION : 'https://${GITLAB_USER_ID}:${PUBLIC_SDK_TOKEN}@git.gitlab.arm.com/iot/open-iot-sdk/examples/total-solutions.git'
 
 stages:
+  - autobot
+  - quality-check
   - build
   - test
   - cleanup
+  - sync-public
 
 workflow:
   rules:
     - if: $CI_MERGE_REQUEST_ID
+    - if: $CI_COMMIT_REF_NAME =~ /^release-.*/
     - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
-.not_scheduled: &not_scheduled
-  if: $CI_PIPELINE_SOURCE != "schedule"
-
-pre-commit:
-  tags:
-    - docker
+# This job will run only if AUTO_UPDATE_WORKFLOW is set
+# Normally this is expected to set in a scheduled pipeline
+# in this repository
+autobot:
+  stage: autobot
   image: ${OPEN_IOT_SDK_DOCKER_REGISTRY}/sanity:v1
-  stage: .pre
-  script:
-    - pre-commit run --all-files --show-diff-on-failure
+  variables:
+    AUTO_MERGE: "true"
+  tags:
+    - iotmsw-amd64
+  extends:
+    - .autobot
   rules:
-    - *not_scheduled
+    - if: $AUTO_UPDATE_WORKFLOW == "true"
 
 .ami-test-base:
   stage: build
@@ -63,13 +74,13 @@ pre-commit:
     # to a temporary file and this file will be referenced by avh.yml
     - |
       echo """
-        export AWS_REGION='"$AWS_REGION"'
-        export OTA_ROLE_NAME='"$OTA_ROLE_NAME"'
-        export OTA_CERT_ID='"$OTA_CERT_ID"'
-        export OTA_ENDPOINT='"$OTA_ENDPOINT"'
-        export OTA_CLIENT_CERT='"$OTA_CLIENT_CERT"'
-        export OTA_CLIENT_PRIV='"$OTA_CLIENT_PRIV"'
-        export OTA_CLIENT_PUB='"$OTA_CLIENT_PUB"'
+        export IOT_AWS_REGION='"$IOT_AWS_REGION"'
+        export IOT_OTA_ROLE_NAME='"$IOT_OTA_ROLE_NAME"'
+        export IOT_OTA_CERT_ID='"$IOT_OTA_CERT_ID"'
+        export IOT_OTA_ENDPOINT='"$IOT_OTA_ENDPOINT"'
+        export IOT_OTA_CLIENT_CERT='"$IOT_OTA_CLIENT_CERT"'
+        export IOT_OTA_CLIENT_PRIV='"$IOT_OTA_CLIENT_PRIV"'
+        export IOT_OTA_CLIENT_PUB='"$IOT_OTA_CLIENT_PUB"'
         export TEST='"$TEST"'
         export BUILD_PATH='"$BUILD_PATH"'
         export CREDENTIALS_PATH='"$CREDENTIALS_PATH"'
@@ -80,7 +91,14 @@ pre-commit:
         export PYTEST_SELECTION='"$PYTEST_SELECTION"'
         export ENDPOINT='"$ENDPOINT"'
       """ > ci/env.sh
-    - cp -f $iothub_credentials_h "$CREDENTIALS_PATH"/iothub_credentials.h
+    - >
+      ./developer-tools/utils/cloud_helper/az.sh
+      --template-type iot
+      --out-file "$CREDENTIALS_PATH"/iothub_credentials.h
+    - >
+      ./developer-tools/utils/cloud_helper/az.sh
+      --template-type nx
+      --out-file "$CREDENTIALS_PATH"/azure_iot_credentials.h
     - export AWS_INSTANCE_NAME="${AVH_INSTANCE_NAME_PREFIX}${CI_JOB_ID}"
     - avhclient -b aws execute --specfile ci/avh.yml
   artifacts:
@@ -93,8 +111,6 @@ pre-commit:
   rules:
     - if: $RUN_AMI_WORKFLOW == "true"
 
-# azure tests are run in a different resource group
-# for managing concurrency.
 ami-test-aws:
   extends: .ami-test-base
   parallel:
@@ -112,8 +128,6 @@ ami-test-aws:
         PYTEST_SELECTION: examples/blinky/tests,examples/keyword/tests/test_ml.py,examples/keyword/tests/test_ota.py,examples/speech/tests/test_ml.py,examples/speech/tests/test_ota.py
         ENDPOINT: [AWS]
 
-# azure tests are run in a different resource group
-# for managing concurrency.
 ami-test-mlia:
   extends: .ami-test-base
   parallel:
@@ -127,11 +141,8 @@ ami-test-mlia:
         PYTEST_SELECTION: "mlia/tests/test_ats_mlia.py"
         ENDPOINT: [AWS]
 
-# azure tests are run in a different resource group
-# for managing concurrency.
 ami-test-azure:
   extends: .ami-test-base
-  resource_group: keyword_azure_test
   parallel:
     matrix:
       - TARGET: Corstone-300
@@ -149,14 +160,14 @@ ami-test-azure:
 
 # This base job load the right docker image and sets some default variables
 .base_job:
+  extends: .base-job-rules
   tags:
-    - docker
+    - iotmsw-amd64
   image: "${OPEN_IOT_SDK_PRIVATE_DOCKER_REGISTRY}/avh:${AVH_DOCKER_TAG}"
   variables:
     PYTHONUNBUFFERED: 1
     BUILD_FOLDER: build-${TARGET}-${RTOS}-${ENDPOINT}
-  rules:
-    - *not_scheduled
+
 
 # The test job extends .basejob. It add rules to map targets to AVH binaries,
 # require the application to be built and retrieve the artifacts.
@@ -166,20 +177,33 @@ ami-test-azure:
   needs:
     - job: build-applications
       artifacts: true
-  rules:
-    - if: ($CI_PIPELINE_SOURCE != "schedule") && ($TARGET == "Corstone-300")
-      variables:
-        AVH: /opt/VHT/VHT_Corstone_SSE-300_Ethos-U55
-    - if: ($CI_PIPELINE_SOURCE != "schedule") && ($TARGET == "Corstone-310")
-      variables:
-        AVH: /opt/VHT/VHT_Corstone_SSE-310
+  before_script:
+    - |
+      if [ $TARGET == "Corstone-300" ];then
+        AVH=/opt/VHT/VHT_Corstone_SSE-300_Ethos-U55
+      fi
+    - |
+      if [ $TARGET == "Corstone-310" ];then
+        AVH=/opt/VHT/VHT_Corstone_SSE-310
+      fi
 
-# This fragment contains base variables required by a pipeline.
-# It can be used to set matrix parameters and extended using << : .anchor syntax
-.pipeline_config: &pipeline_config
+
+# Those fragments contain base variables required by pipelines for AWS and Azure.
+# They can be used to set matrix parameters and extended using << : .anchor syntax
+.pipeline_config_aws: &pipeline_config_aws
   TARGET: [Corstone-300, Corstone-310]
-  RTOS: [FREERTOS, RTX, THREADX]
-  ENDPOINT: [AWS, AZURE]
+  RTOS: [FREERTOS, RTX]
+  ENDPOINT: [AWS]
+
+.pipeline_config_azure: &pipeline_config_azure
+  TARGET: [Corstone-300, Corstone-310]
+  RTOS: [THREADX, RTX]
+  ENDPOINT: [AZURE]
+
+.pipeline_config_azure_netxduo: &pipeline_config_azure_netxduo
+  TARGET: [Corstone-300, Corstone-310]
+  RTOS: [THREADX]
+  ENDPOINT: [AZURE_NETXDUO]
 
 # Build all the applications which later are tested. Build of the various binaries
 # is described in ./ci/build_examples.sh
@@ -187,11 +211,25 @@ build-applications:
   stage: build
   extends: .base_job
   script:
-    - . ./ci/bootstrap.sh
+    - env
     - ./ci/generate_credentials.sh -p "$BUILD_FOLDER"_credentials_keyword
     - ./ci/generate_credentials.sh -p "$BUILD_FOLDER"_credentials_speech
-    - cp -f $iothub_credentials_h "$BUILD_FOLDER"_credentials_keyword/iothub_credentials.h
-    - cp -f $iothub_credentials_h "$BUILD_FOLDER"_credentials_speech/iothub_credentials.h
+    - >
+      ./developer-tools/utils/cloud_helper/az.sh
+      --template-type iot
+      --out-file "$BUILD_FOLDER"_credentials_keyword/iothub_credentials.h
+    - >
+      ./developer-tools/utils/cloud_helper/az.sh
+      --template-type iot
+      --out-file "$BUILD_FOLDER"_credentials_speech/iothub_credentials.h
+    - >
+      ./developer-tools/utils/cloud_helper/az.sh
+      --template-type nx
+      --out-file "$BUILD_FOLDER"_credentials_keyword/azure_iot_credentials.h
+    - >
+      ./developer-tools/utils/cloud_helper/az.sh
+      --template-type nx
+      --out-file "$BUILD_FOLDER"_credentials_speech/azure_iot_credentials.h
     - ./ci/build_examples.sh
   artifacts:
     paths:
@@ -223,67 +261,101 @@ build-applications:
     expire_in: 1 week
   parallel:
     matrix:
-      - *pipeline_config
+      - *pipeline_config_aws
+      - *pipeline_config_azure
+      - *pipeline_config_azure_netxduo
 
 # Test the blinky and ML part of the KWS application
 test-application:
   extends: .test_job
   script:
-    - . ./ci/bootstrap.sh
+    - env
+    - echo $AVH
     - pytest -s ${TEST_PATH} --build-path ${BUILD_FOLDER} --avh ${AVH}
   parallel:
     matrix:
       -
-        << : *pipeline_config
-        ENDPOINT: [AWS]
+        << : *pipeline_config_aws
+        TEST_PATH: [examples/blinky/tests, examples/keyword/tests/test_ml.py, examples/speech/tests/test_ml.py]
+      -
+        << : *pipeline_config_azure
+        TEST_PATH: [examples/blinky/tests, examples/keyword/tests/test_ml.py, examples/speech/tests/test_ml.py]
+      -
+        << : *pipeline_config_azure_netxduo
         TEST_PATH: [examples/blinky/tests, examples/keyword/tests/test_ml.py, examples/speech/tests/test_ml.py]
 
 # Test connection to the AWS cloud
 test-ota-aws:
   extends: .test_job
   script:
-    - . ./ci/bootstrap.sh
+    - env
+    - . ./ci/assume_role.sh
     - pytest -s examples/${APP}/tests/test_ota.py --build-path "$BUILD_FOLDER"_cloud_${APP} --avh $AVH --credentials-path "$BUILD_FOLDER"_credentials_${APP}
   parallel:
     matrix:
       -
-        << : *pipeline_config
+        << : *pipeline_config_aws
         APP: [keyword, speech]
-        ENDPOINT: [AWS]
 
 # Test connection to the azure cloud
 test-ml-azure:
   extends: .test_job
-  resource_group: keyword_azure_test
   script:
-    - . ./ci/bootstrap.sh
+    - env
     - pytest -s examples/${APP}/tests/test_azure.py --build-path "$BUILD_FOLDER"_cloud_${APP} --avh $AVH
   parallel:
     matrix:
       -
-        << : *pipeline_config
+        << : *pipeline_config_azure
         APP: [keyword, speech]
-        ENDPOINT: [AZURE]
+      -
+        << : *pipeline_config_azure_netxduo
+        APP: [keyword, speech]
 
 test-mlia:
+  extends: .base-job-rules
   stage: test
   tags:
-    - docker
+    - iotmsw-amd64
   image: "${OPEN_IOT_SDK_PRIVATE_DOCKER_REGISTRY}/avh:${AVH_DOCKER_TAG}"
   script:
-    - . ./ci/bootstrap.sh
+    - env
     - ls /opt/VHT/
     - ./ats.sh build mlia --clean
     - pytest mlia/tests/test_ats_mlia.py
-  rules:
-    - *not_scheduled
+
 
 aws-cleanup:
   stage: cleanup
   tags:
-    - docker
+    - iotmsw-amd64
   image: "${OPEN_IOT_SDK_PRIVATE_DOCKER_REGISTRY}/avh:${AVH_DOCKER_TAG}"
   rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $GARBAGE_COLLECT == "true"
   script:
+    - . ./ci/assume_role.sh
     - python -u ./ci/aws_cleanup.py
+
+avh-cleanup:
+  stage: cleanup
+  image: "${OPEN_IOT_SDK_PRIVATE_DOCKER_REGISTRY}/sanity:v1"
+  tags:
+    - docker
+
+  script:
+    - python ci/cleanup_avh_instances.py "${AVH_INSTANCE_NAME_PREFIX}"
+  rules:
+    - if: $GARBAGE_COLLECT == "true"
+
+
+# This is triggered when a commit is added to the DEFAULT(often `main`) branch in internal GitLab
+# This job will push DEFAULT branch changes to the public GitLab
+push-public:
+  extends: .push-public
+  stage: sync-public
+
+# This job is triggered by scheduled pipeline of this repository running in internal GitLab.
+# This job will pull changes of the branch which is set to run the scheduled pipeline (often `main` branch).
+pull-public:
+  extends: .pull-public
+  stage: sync-public
