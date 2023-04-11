@@ -196,7 +196,7 @@ Clone the repository in the AMI using the following command format:
 
 Example:
 ```sh
-git clone https://github.com/ARM-software/open-iot-sdk.git && cd open-iot-sdk/examples/ats-keyword
+git clone https://github.com/ARM-software/open-iot-sdk.git && cd open-iot-sdk/v8m
 ```
 
 Install additional python dependencies required to run tests and sign binaries:
