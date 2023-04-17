@@ -1,7 +1,7 @@
 /*
  * Amazon FreeRTOS V1.4.8
  * Copyright (C) 2019 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
- * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
+ * Copyright (c) 2022-2023, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -27,7 +27,7 @@
 #ifndef IOT_CONFIG_H
 #define IOT_CONFIG_H
 
-#define configPLATFORM_NAME       "AN547"
+#define configPLATFORM_NAME       "AN552"
 
 // FIXME:
 // as I understand this files is for configuring AWS SDK and other libraries

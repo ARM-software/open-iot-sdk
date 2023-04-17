@@ -32,6 +32,7 @@ your application. */
 #include <stdint.h>
 #include "aws_secure_sockets_config.h"
 #include "RTOS_config.h"
+#include CMSIS_device_header    /* defines SVCall_IRQn required by cmsis_os2.c in FreeRTOS implementation of CMSIS-RTOS */
 
 #ifndef   __USED
   #define __USED                                 __attribute__((used))
@@ -61,7 +62,7 @@ extern uint32_t SystemCoreClock;
 #define configUSE_ALTERNATIVE_API               0 /* Deprecated! */
 #define configQUEUE_REGISTRY_SIZE               10
 #define configUSE_QUEUE_SETS                    0
-#define configUSE_TIME_SLICING                  1
+#define configUSE_TIME_SLICING                  0
 #define configUSE_NEWLIB_REENTRANT              0
 #define configENABLE_BACKWARD_COMPATIBILITY     0
 #define configNUM_THREAD_LOCAL_STORAGE_POINTERS 5

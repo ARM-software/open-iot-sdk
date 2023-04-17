@@ -33,6 +33,27 @@
 
 #include "ota.h"
 
+/* OTA PAL signing algorithm configurations. */
+#define OTA_PAL_CODE_SIGNING_RSA    ( 0 )
+#define OTA_PAL_CODE_SIGNING_ECDSA  ( 1 )
+
+/* Choose code signing algorithm. */
+#ifndef OTA_PAL_CODE_SIGNING_ALGO
+#define OTA_PAL_CODE_SIGNING_ALGO   ( OTA_PAL_CODE_SIGNING_ECDSA )
+#endif
+
+
+/* OTA PAL signature format configurations. */
+#define OTA_PAL_SIGNATURE_RAW        ( 0 )
+#define OTA_PAL_SIGNATURE_ASN1_DER   ( 1 )
+
+/* Choose the signature format. */
+/* The OTA_PAL_SIGNATURE_ASN1_DER enables to convert ASN1/DER signature to raw data. */
+#ifndef OTA_PAL_SIGNATURE_FORMAT
+#define OTA_PAL_SIGNATURE_FORMAT   ( OTA_PAL_SIGNATURE_ASN1_DER )
+#endif
+
+
 /**
  * @brief Abort an OTA transfer.
  *
@@ -225,5 +246,4 @@ OtaPalImageState_t otaPal_GetPlatformImageState( OtaFileContext_t * const pFileC
  *         error codes and your specific PAL implementation for the sub error code.
  */
 OtaPalStatus_t otaPal_ResetDevice( OtaFileContext_t * const pFileContext );
-
 #endif /* ifndef OTA_PAL_H_ */

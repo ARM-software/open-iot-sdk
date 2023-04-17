@@ -10,7 +10,7 @@ The software supports multiple configurations of the Arm Corstone-300 and Corsto
 
 ## Keyword detection application
 
-The keyword detection application runs the DS-CNN model on top of [FreeRTOS](https://freertos.org/a00104.html#getting-started), [CMSIS-RTOS2](https://arm-software.github.io/CMSIS_5/RTOS2/html/index.html) or [ThreadX](https://learn.microsoft.com/en-gb/azure/rtos/threadx/overview-threadx). It detects keywords and inform the user of which keyword has been spotted. The audio data to process are injected at run time using the [Arm Virtual Hardware](https://www.arm.com/virtual-hardware) audio driver.
+The keyword detection application runs the DS-CNN model on top of [CMSIS-RTOS2](https://arm-software.github.io/CMSIS_5/RTOS2/html/index.html) implemented by [RTX](https://arm-software.github.io/CMSIS_5/RTOS2/html/rtx5_impl.html), [FreeRTOS](https://freertos.org/a00104.html#getting-started) or [ThreadX](https://learn.microsoft.com/en-gb/azure/rtos/threadx/overview-threadx). It detects keywords and inform the user of which keyword has been spotted. The audio data to process are injected at run time using the [Arm Virtual Hardware](https://www.arm.com/virtual-hardware) audio driver.
 
 The Keyword application connects to [AWS IoT](https://docs.aws.amazon.com/iot/latest/developerguide/what-is-aws-iot.html) or [Azure IoT](https://learn.microsoft.com/en-gb/azure/iot-fundamentals/iot-introduction) to publish recognised keywords. AWS IoT cloud is also used for OTA firmware updates. These firmware updates are securely applied using [Trusted Firmware-M](https://tf-m-user-guide.trustedfirmware.org/). For more information, refer to the keyword detection [Readme](./examples/keyword/README.md).
 
@@ -18,7 +18,7 @@ The Keyword application connects to [AWS IoT](https://docs.aws.amazon.com/iot/la
 
 ## Speech recognition application
 
-The speech detection application runs a tiny version of the ASR model on top of [FreeRTOS](https://freertos.org/a00104.html#getting-started), [CMSIS-RTOS2](https://arm-software.github.io/CMSIS_5/RTOS2/html/index.html) or [ThreadX](https://learn.microsoft.com/en-gb/azure/rtos/threadx/overview-threadx). It detects sentences and informs the user which sentence has been spotted. The audio data to be processed is injected at run time using the [Arm Virtual Hardware](https://www.arm.com/virtual-hardware) audio driver.
+The speech detection application runs a tiny version of the ASR model on top of [CMSIS-RTOS2](https://arm-software.github.io/CMSIS_5/RTOS2/html/index.html) implemented by [RTX](https://arm-software.github.io/CMSIS_5/RTOS2/html/rtx5_impl.html), [FreeRTOS](https://freertos.org/a00104.html#getting-started) or [ThreadX](https://learn.microsoft.com/en-gb/azure/rtos/threadx/overview-threadx). It detects sentences and informs the user which sentence has been spotted. The audio data to be processed is injected at run time using the [Arm Virtual Hardware](https://www.arm.com/virtual-hardware) audio driver.
 
 The speech detection application connects to [AWS IoT](https://docs.aws.amazon.com/iot/latest/developerguide/what-is-aws-iot.html) or [Azure IoT](https://learn.microsoft.com/en-gb/azure/iot-fundamentals/iot-introduction) to publish recognised sentences.
 
@@ -28,7 +28,7 @@ The architecture of this solution is similar to the keyword application.
 
 ## Blinky application
 
-The blinky application demonstrate blinking LEDs using Arm Virtual Hardware. FreeRTOS is already included in the application to kickstart new developments.
+The blinky application demonstrate blinking LEDs using Arm Virtual Hardware.
 
 # Quick Start
 
@@ -232,19 +232,30 @@ Build the keyword application:
 ./ats.sh build keyword
 ```
 
-This will by default build the application in the `build` directory for the `Corstone-300` target using the `FreeRTOS` OS. This is equivalent to:
+This will by default build the application in the `build` directory for the `Corstone-300` target using the `RTX` OS. This is equivalent to:
 
 ```sh
-./ats.sh build keyword --target Corstone-300 --rtos FREERTOS --path build
+./ats.sh build keyword --target Corstone-300 --rtos RTX --path build
 ```
 
 To build for Corstone-310 use `--target Corstone-310`.
 
-To build using the RTX RTOS implementation use `--rtos RTX`.
+To build using the FreeRTOS RTOS implementation use `--rtos FREERTOS`, although note that FreeRTOS is only tested with AWS connectivity, not Azure.
 
-To build using the ThreadX RTOS implementation use `--rtos THREADX`, although note that ThreadX is only tested with Azure connectivity, not AWS.
+To build using the ThreadX RTOS implementation use `--rtos THREADX`, although note that ThreadX is only tested with Azure connectivity, not AWS. It is also the only valid choice for NetX Duo.
 
-You can have multiple builds with different parameters side by side by changing the `--path` parameter to something unique to each build configuration. This speed up the re-build process when working with multiple targets and RTOS.
+When no `--rtos` option is passed, `RTX` is implied, although note that RTX is only compatible with AWS and Azure IoT C SDKs and Libraries, not the Azure RTOS NetX Duo Azure IoT Middleware.
+
+See the example RTOS and endpoint compatibility table below:
+
+|            |       |       |               |
+| ---        | :---: | :---: |  :---:        |
+|            | AWS   | AZURE | AZURE_NETXDUO |
+| RTX        | ✔️     | ✔️    |      ❌      |
+| FREERTOS   | ✔️     | ❌    |      ❌      |
+| THREADX    | ❌    | ✔️     |      ✔️       |
+
+You can have multiple builds with different parameters side by side by changing the `--path` parameter to something unique to each build configuration. This speeds up the re-build process when working with multiple targets and RTOS.
 
 ## Run
 
@@ -298,34 +309,32 @@ The instructions below will allow the Application to send messages to the Cloud 
 1. Login to your account and browse to the [AWS IoT console](https://console.aws.amazon.com/iotv2/).
    * If this takes you to AWS Console, click on **Services** above and then click on **IoT Core**.
    * Ensure your **Region** is correct.
-2. In the left navigation pane, choose **Manage**, and then choose **Things**.
+2. In the left navigation pane **Manage** section, expand **All devices** then select **Things**.
    * These instructions assume you do not have any IoT things registered in your account.
-   * Choose **Register** or **Create things**.
-3. On the **Create things** page, choose **Create single thing**.
-4. On the **Specify thing properties** page, type a **Thing name** for your thing (for example `MyThing_eu_west_1`), and then choose **Next**.
-   * Adding the region name helps to remind you which region the thing and topic is attached to.
-   * You will need to add the name later to your C code.
-   * There is no need to add any **addition configuration** or **Device Shadow** information.
-5. On the **Configure device certificate** page, choose **Auto-generate a new certificate** and then click **Next**.
-6. Skip the **Attach policies to certificate page** for now.
-   * You will attach a certificate to the Thing in a later step.
+   * Press the **Create things** button.
+3. On the **Create things** page, select **Create single thing** and press the **Next** button.
+4. On the **Specify thing properties** page, type a **Thing name** for your thing (for example `MyThing_eu_west_1`), and then press the **Next** button.
+   * Adding the region name to your thing name helps to remind you which region the thing and topic is attached to.
+   * You will need to add the thing name later to your C code.
+   * There is no need to add any **Additionional configuration** or **Device Shadow** information.
+5. On the **Configure device certificate** page, choose **Auto-generate a new certificate** and then press the **Next** button.
+6. Skip the **Attach policies to certificate** page for now.
+   * You will attach a certificate to the thing in a later step.
 7. Download your all the keys and certificates by choosing the **Download** links for each.
    * Click on all the **Download** buttons and store these files in a secure location as you will use them later.
    * Make note of the certificate ID. You need it later to attach a policy to your certificate.
    * Click on **Done** once all items have downloaded.
-8. AWS used to have you choose **Activate** to activate your certificate.
-   * This is no longer an option.
 
 ### Create a policy and attach it to your thing
 
-1. In the navigation pane of the AWS IoT console, choose **Secure**, and then choose **Policies**.
-2. On the **Policies** page, choose **Create Policy**.
+1. In the left navigation pane **Manage** section of the AWS IoT console, expand **Security**, and then select **Policies**.
+2. On the **Policies** page, press the **Create Policy** button.
    * These instructions assume you do not have any **Policies** registered in your account,
 3. On the **Create Policy** page
-   * Enter a name for the policy.
-   * In the **Policy document** box, enter 4 separate policies with the following values:
-     * **Policy effect** - Choose **Allow** for all entries.
-     * **Policy Action** - Use the values below, 1 for each entry.
+   * Enter a name for the policy in the **Policy properties** section.
+   * In the **Policy document** section, add 3 new policy statements to have a total of 4 policy statements with the following values:
+     * **Policy effect** - select **Allow** for all statements.
+     * **Policy Action** - select one of the actions below for each statement.
        * **iot:Connect**
        * **iot:Publish**
        * **iot:Subscribe**
@@ -334,27 +343,27 @@ The instructions below will allow the Application to send messages to the Cloud 
      * If no value exists, use the following format:    (arn:aws:iot:**region:account-id:\***)
        * region (e.g. eu-west-1)
        * account-id ... This is your **Acount ID Number**.
-         * You can see this usually on the top right corner that shows your login name.
+         * You can usually see this in the drop down on the top right corner where your login name is shown.
        * e.g. *arn:aws:iot:eu-west-1:012345678901:*
      * Replace the part, or add, after the last colon (`:`) with `*`.
        * e.g. *arn:aws:iot:eu-west-1:012345678901:\**
-     * Click on **Create**.
+     * Press the **Create** button.
 
 <br>
 
-   > NOTE - The examples in this document are intended for development environments only.  All devices in your production fleet must have credentials with privileges that authorize only intended actions on specific resources. The specific permission policies can vary for your use case. Identify the permission policies that best meet your business and security requirements.  For more information, refer to Example policies and Security Best practices of your Cloud-Service-Provider.
+   > NOTE - The examples in this document are intended for development environments only.  All devices in your production fleet must have credentials with privileges that authorize only intended actions on specific resources. The specific permission policies can vary for your use case. Identify the permission policies that best meet your business and security requirements.  For more information, refer to [Security Best practices in AWS IoT Core](https://docs.aws.amazon.com/iot/latest/developerguide/security-best-practices.html).
 
 <br>
 
-4. In the left navigation pane of the AWS IoT console, choose **Secure**, and then choose **Certificates**. You should see the certificate that you have created earlier.
-   * Use the ID in the front of the certificate and key files that you downloaded earlier to identify your certificate.
-   * Click on your certificate name to take you to your certificate.
-6. Click on **Actions** -> **Attach policy** or look down the page and click on **Attach policies**.
-7. In the **Attach policies to certificate(s)** window
-   * Find your policy and click on it it.
+4. In the left navigation pane **manage** section of the AWS IoT console, expand **Security**, and then select **Certificates**. You should see the certificate for the thing you created earlier.
+   * Use the ID in front of the certificate and key files that you downloaded after creating the thing to identify your certificate.
+   * Select your certificate name to take you to your Certificate page.
+6. Expand the **Actions** drop down list and select **Attach policy**. Alternatively, press the **Attach policies** button in **Policies** tab.
+7. In the **Attach policies to the certificate** dialog box
+   * Choose the policy you created earlier.
      * Even though you may enable more than one policy, for now we use the single policy you created earlier.
-   * Click **Attach policies**.
-   * You will now see your policy listed on the Certificate page.
+   * Press the **Attach policies** button.
+   * You will now see your policy listed in the **Policies** tab on the Certificate page.
 
 ## Configure the application to connect to your AWS account
 Now that you have created an AWS Thing and attached the certificates and policies to it, the representative values must be added to your application to ensure connectivity with your AWS account.
@@ -461,7 +470,11 @@ To create a new Azure IoT Hub and one device within it through the web portal fo
 
 ## Configure the application to connect to your Azure IoT Hub
 
-Now that you have created a device in your IoT Hub, the application must be configured to connect to the Azure IoT Hub with the credentials of the device created.
+Now that you have created a device in your IoT Hub, the application must be configured to connect to the Azure IoT Hub with the credentials of the device created. Total Solutions offers support for two different Azure client:
+- [azure-iot-sdk-c](https://github.com/Azure/azure-iot-sdk-c): Generic Azure client, it supports any RTOS.
+- [Azure RTOS NetX Duo](https://github.com/azure-rtos/netxduo): IP Middleware built on top of Azure RTOS NetX. It includes an implementation of the [azure-sdk-for-c](https://github.com/Azure/azure-sdk-for-c) client.
+
+### Azure IoT C SDKs and Libraries
 
 Within the application directory that you are using, edit the `bsp/default_credentials/iothub_credentials.h` file.
 
@@ -473,13 +486,31 @@ This is done through setting defines in the same `bsp/default_credentials/iothub
 `IOTHUB_DPS_ENDPOINT`, `IOTHUB_DPS_ID_SCOPE`, `IOTHUB_DPS_REGISTRATION_ID`, `IOTHUB_DPS_KEY` must all be set.
 To obtain the values follow [Azure documentation](https://docs.microsoft.com/en-us/azure/iot-dps/quick-setup-auto-provision).
 
+### NetX Duo Azure IoT Middleware for Azure RTOS
+
+The device connects to the IoTHub using a symmetric key. To register a new device in IoTHub, follow the [doc](https://docs.microsoft.com/en-us/azure/iot-hub/iot-hub-create-through-portal#register-a-new-device-in-the-iot-hub) to create a device with a symmetric key authentication.
+
+After device's registration is complete, copy the connection string for the device with following format **HostName=<>;DeviceId=<>;SharedAccessKey=<>** to `bsp/default_credentials/azure_iot_credentials.h`.
+
+```c
+#define HOST_NAME                                   "<Hostname from connection string>"
+#define DEVICE_ID                                   "<DeviceId from connection string>"
+#define DEVICE_SYMMETRIC_KEY                        "<SharedAccessKey from connection string>"
+```
+
 ## Build the application to connect to your Azure IoT Hub
 
-The application selects a cloud client (Aws or Azure) at build time. This is achieved by adding the flag `-e <AZURE|AWS>` to the build command line.
-To build a version of keyword connecting to the Azure cloud on Corstone-300 and using FreeRTOS, use the following command line:
+The application selects a cloud client at build time. This is achieved by adding the flag `-e <AZURE|AZURE_NETXDUO|AWS>` to the build command line.
+To build a version of keyword connecting to the Azure cloud on Corstone-300 and using RTX and [Azure IoT C SDKs and Libraries](https://github.com/Azure/azure-iot-sdk-c), use the following command line:
 
 ```sh
 ./ats.sh build keyword -e AZURE
+```
+
+To build a version of keyword connecting to the Azure cloud on Corstone-300 and using ThreadX and the Azure RTOS NetX Duo Azure IoT Middleware [Azure IoT Middleware for Azure RTOS](https://github.com/azure-rtos/netxduo/tree/master/addons/azure_iot), use the following command line:
+
+```sh
+./ats.sh build keyword --rtos THREADX -e AZURE_NETXDUO
 ```
 
 ## Monitoring messages sent to your Azure IoT Hub
@@ -516,7 +547,8 @@ Execute the following script located in the application repository.
     - `source`: Source folder
       - `main_ns.c`: Entry point of the keyword application.
       - `aws_demo.c`: AWS IoT specific code of the keyword application.
-      - `azure_demo.c`: Azure IoT Hub specific code of the keyword application.
+      - `azure_demo.c`: Azure IoT Hub specific code of the keyword application using Azure IoT C SDKs and Libraries.
+      - `azure_netxduo_demo.c`: Azure IoT Hub specific code of the keyword application using NetX Duo Azure IoT Middleware.
       - `blink_task.c`: Blinky/UX thread of the application.
       - `ml_interface.c`: Interface between the virtual streaming solution and tensor flow.
       - `ethosu_platform_adaptation.c`: RTOS adapatation for the Ethos U55.
@@ -525,7 +557,8 @@ Execute the following script located in the application repository.
     - `source`: Source folder
       - `main_ns.c`: Entry point of the speech application.
       - `aws_demo.c`: AWS IoT specific code of the speech application.
-      - `azure_demo.c`: Azure IoT Hub specific code of the speech application.
+      - `azure_demo.c`: Azure IoT Hub specific code of the speech application using Azure IoT C SDKs and Libraries.
+      - `azure_netxduo_demo.c`: Azure IoT Hub specific code of the keyword application using NetX Duo Azure IoT Middleware.
       - `blink_task.c`: Blinky/UX thread of the application.
       - `ml_interface.c`: Interface between the virtual streaming solution and tensor flow.
       - `ethosu_platform_adaptation.c`: RTOS adapatation for the Ethos U55.

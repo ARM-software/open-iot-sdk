@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022, Arm Limited and Contributors. All rights reserved.
+# Copyright (c) 2021-2023, Arm Limited and Contributors. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 cmake_minimum_required(VERSION 3.18)
@@ -11,7 +11,7 @@ add_library(ts-bsp STATIC)
 target_include_directories(ts-bsp
     PUBLIC
         ${PRJ_DIR}/bsp/platform
-        $<$<STREQUAL:${TS_TARGET},Corstone-300>:${CMAKE_CURRENT_SOURCE_DIR}/ethos-u55/an547>
+        $<$<STREQUAL:${TS_TARGET},Corstone-300>:${CMAKE_CURRENT_SOURCE_DIR}/ethos-u55/an552>
         $<$<STREQUAL:${TS_TARGET},Corstone-310>:${CMAKE_CURRENT_SOURCE_DIR}/ethos-u55/an555>
 )
 
@@ -44,7 +44,6 @@ target_compile_definitions(ts-bsp
         -DMPS3_PLATFORM=1
         -DPLATFORM_HAL=1
         -DPLATFORM_DEFAULT_UART_STDOUT=ON
-        -DTFM_PARTITION_AUDIT_LOG
         -DTFM_PARTITION_CRYPTO
         -DTFM_PARTITION_FIRMWARE_UPDATE
         -DTFM_PARTITION_INITIAL_ATTESTATION
@@ -82,13 +81,11 @@ target_link_libraries(ts-bsp
 )
 
 # OS alloc wrapper
-if (TARGET cmsis-rtx)
-    add_library(cmsis-rtx-freertos-alloc-wrapper STATIC)
-    target_sources(cmsis-rtx-freertos-alloc-wrapper
-        PRIVATE
-            cmsis-config/rtx-alloc.c
-    )
-endif()
+add_library(heap-alloc-wrapper STATIC)
+target_sources(heap-alloc-wrapper
+    PRIVATE
+        cmsis-config/heap-alloc.c
+)
 
 
 # Add credentials library
@@ -101,24 +98,26 @@ target_include_directories(cloud-credentials
 
 # Add Startup library
 add_library(startup
-    $<$<STREQUAL:${TS_TARGET},Corstone-300>:${TFM_PLATFORM}/device/source/startup_an547_ns.c>
-    $<$<STREQUAL:${TS_TARGET},Corstone-310>:${TFM_PLATFORM}/device/source/startup_corstone_polaris_ns.c>
+    $<$<STREQUAL:${TS_TARGET},Corstone-300>:${TFM_PLATFORM}/device/source/startup_an552.c>
+    $<$<STREQUAL:${TS_TARGET},Corstone-310>:${TFM_PLATFORM}/../common/device/source/startup_corstone310.c>
 )
 
 set(link_definitions_file ${CMAKE_CURRENT_BINARY_DIR}/link_definitions.txt)
 
 if (${TS_TARGET} STREQUAL "Corstone-300")
     mdh_generate_definitions_for_linker(mdh-arm-corstone-300-startup ${link_definitions_file})
-    mdh_set_linker_script(startup "${PRJ_DIR}/bsp/an547_ns.sct" ${link_definitions_file})
+    mdh_set_linker_script(startup "${PRJ_DIR}/bsp/an552_ns.sct" ${link_definitions_file})
 elseif(${TS_TARGET} STREQUAL "Corstone-310")
     mdh_generate_definitions_for_linker(mdh-arm-corstone-310-startup ${link_definitions_file})
     mdh_set_linker_script(startup "${PRJ_DIR}/bsp/an555_ns.sct" ${link_definitions_file})
 endif()
 
-FetchContent_GetProperties(tf-m)
+FetchContent_GetProperties(trusted-firmware-m)
 target_include_directories(startup
     PRIVATE
-        "${tf-m_SOURCE_DIR}/platform/include"
+        "${trusted-firmware-m_SOURCE_DIR}/platform/include"
+        $<$<STREQUAL:${TS_TARGET},Corstone-300>:${TFM_PLATFORM}/device/include>
+        $<$<STREQUAL:${TS_TARGET},Corstone-310>:${TFM_PLATFORM}/../common/device/include>
 )
 
 target_link_libraries(startup

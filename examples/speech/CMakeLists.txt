@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022 ARM Limited. All rights reserved.
+# Copyright (c) 2021-2023 ARM Limited. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 cmake_minimum_required(VERSION 3.21)
@@ -104,12 +104,42 @@ elseif(${CLOUD_CLIENT} STREQUAL "AZURE")
         azure-provisioning-client
         cloud-credentials
     )
+elseif(${CLOUD_CLIENT} STREQUAL "AZURE_NETXDUO")
+    target_sources(speech
+        PRIVATE
+            source/azure_netxduo_demo.c
+            ${PRJ_DIR}/bsp/netxduo-config/nx_azure_iot_cert.c
+            ${PRJ_DIR}/bsp/netxduo-config/nx_azure_iot_ciphersuites.c
+            ${PRJ_DIR}/bsp/netxduo-config/sample_azure_iot_embedded_sdk_connect.c
+    )
+
+    target_include_directories(speech
+        PRIVATE
+            ${APP_CONFIG_CREDENTIALS_PATH}
+    )
+
+    target_include_directories(speech
+        PRIVATE
+            ${PRJ_DIR}/bsp/netxduo-config
+            ${PRJ_DIR}/bsp/aws_libraries/3rdparty/mbedtls_config
+    )
+
+    # final binary
+    target_link_libraries(speech
+        nx-ip-link-mdh
+        mcu-driver-hal
+        iotsdk-serial-retarget
+        iotsdk-emac-factory
+        mbedtls
+        cmsis-rtos-api
+        netxduo
+    )
 endif()
 
 # Copy the result of TF-M build in the top level build directory
 # Convert axf files into bin
 # Sign binaries
-FetchContent_GetProperties(tf-m)
+FetchContent_GetProperties(trusted-firmware-m)
 add_custom_command(
     TARGET
         speech
@@ -121,60 +151,70 @@ add_custom_command(
         ${CMAKE_CURRENT_BINARY_DIR}/speech_unsigned.bin
         ${CMAKE_CURRENT_BINARY_DIR}/speech_signed.bin
         ${CMAKE_CURRENT_BINARY_DIR}/speech_signed_update.bin
-        ${CMAKE_CURRENT_BINARY_DIR}/update-digest.bin
-        ${CMAKE_CURRENT_BINARY_DIR}/update-signature.bin
-        ${CMAKE_CURRENT_BINARY_DIR}/update-signature.txt
 
     COMMAND
         ${ARM_ELF2BIN} --bin --output ${CMAKE_CURRENT_BINARY_DIR}/speech_unsigned.bin ${CMAKE_CURRENT_BINARY_DIR}/speech${CMAKE_EXECUTABLE_SUFFIX} --bincombined
 
     COMMAND
-        python3 ${tf-m_BINARY_DIR}/install/image_signing/scripts/wrapper/wrapper.py
+        # The primary image is padded to fill the whole slot (--pad), so that the
+        # trailer area at the end of the slot is in a clean state during initial boot.
+        python3 ${trusted-firmware-m_BINARY_DIR}/install/image_signing/scripts/wrapper/wrapper.py
             -v 0.0.1
             --layout ${PRJ_DIR}/bsp/signing_layout_ns.c
-            -k ${tf-m_BINARY_DIR}/install/image_signing/keys/root-RSA-2048_1.pem
+            -k ${trusted-firmware-m_BINARY_DIR}/install/image_signing/keys/root-RSA-2048_1.pem
             --public-key-format full
             --align 1
             --pad
             --pad-header
             -H 0x400
             -s auto
+            --measured-boot-record
             ${CMAKE_CURRENT_BINARY_DIR}/speech_unsigned.bin
             ${CMAKE_CURRENT_BINARY_DIR}/speech_signed.bin
 
     COMMAND
-        python3 ${tf-m_BINARY_DIR}/install/image_signing/scripts/wrapper/wrapper.py
+        # The update image is not padded to fill the whole slot (no --pad), because
+        # 1) the image to download is smaller without padding
+        # 2) the trailer that keeps track of boot and update statuses should not be overwritten
+        python3 ${trusted-firmware-m_BINARY_DIR}/install/image_signing/scripts/wrapper/wrapper.py
             -v 0.0.2
             --layout ${PRJ_DIR}/bsp/signing_layout_ns.c
-            -k ${tf-m_BINARY_DIR}/install/image_signing/keys/root-RSA-2048_1.pem
+            -k ${trusted-firmware-m_BINARY_DIR}/install/image_signing/keys/root-RSA-2048_1.pem
             --public-key-format full
             --align 1
-            --pad
             --pad-header
             -H 0x400
             -s auto
+            --measured-boot-record
             ${CMAKE_CURRENT_BINARY_DIR}/speech_unsigned.bin
             ${CMAKE_CURRENT_BINARY_DIR}/speech_signed_update.bin
-
-    COMMAND
-        openssl dgst -sha256 -binary -out ${CMAKE_CURRENT_BINARY_DIR}/update-digest.bin ${CMAKE_CURRENT_BINARY_DIR}/speech_signed_update.bin
-
-    COMMAND
-        openssl pkeyutl -sign -pkeyopt digest:sha256 -pkeyopt rsa_padding_mode:pss -pkeyopt rsa_mgf1_md:sha256 -inkey ${tf-m_BINARY_DIR}/install/image_signing/keys/root-RSA-2048_1.pem -in ${CMAKE_CURRENT_BINARY_DIR}/update-digest.bin -out ${CMAKE_CURRENT_BINARY_DIR}/update-signature.bin
-
-    COMMAND
-        openssl base64 -A -in ${CMAKE_CURRENT_BINARY_DIR}/update-signature.bin -out ${CMAKE_CURRENT_BINARY_DIR}/update-signature.txt
-
-    COMMAND
-        ${CMAKE_COMMAND} -E echo "Use this base 64 encoded signature in OTA job:"
-
-    COMMAND
-        ${CMAKE_COMMAND} -E cat ${CMAKE_CURRENT_BINARY_DIR}/update-signature.txt
 )
 
-add_test(
-    NAME    speech-test
-    COMMAND pytest -s speech/tests
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    COMMAND_EXPAND_LISTS
-)
+if(${CLOUD_CLIENT} STREQUAL "AWS")
+    add_custom_command(
+        TARGET
+            speech
+        POST_BUILD
+        DEPENDS
+            ${CMAKE_CURRENT_BINARY_DIR}/speech_signed_update.bin
+
+        BYPRODUCTS
+            ${CMAKE_CURRENT_BINARY_DIR}/update-digest.bin
+            ${CMAKE_CURRENT_BINARY_DIR}/update-signature.bin
+            ${CMAKE_CURRENT_BINARY_DIR}/update-signature.txt
+        COMMAND
+            openssl dgst -sha256 -binary -out ${CMAKE_CURRENT_BINARY_DIR}/update-digest.bin ${CMAKE_CURRENT_BINARY_DIR}/speech_signed_update.bin
+
+        COMMAND
+            openssl pkeyutl -sign -pkeyopt digest:sha256 -pkeyopt rsa_padding_mode:pss -pkeyopt rsa_mgf1_md:sha256 -inkey ${trusted-firmware-m_BINARY_DIR}/install/image_signing/keys/root-RSA-2048_1.pem -in ${CMAKE_CURRENT_BINARY_DIR}/update-digest.bin -out ${CMAKE_CURRENT_BINARY_DIR}/update-signature.bin
+
+        COMMAND
+            openssl base64 -A -in ${CMAKE_CURRENT_BINARY_DIR}/update-signature.bin -out ${CMAKE_CURRENT_BINARY_DIR}/update-signature.txt
+
+        COMMAND
+            ${CMAKE_COMMAND} -E echo "Use this base 64 encoded signature in OTA job:"
+
+        COMMAND
+            ${CMAKE_COMMAND} -E cat ${CMAKE_CURRENT_BINARY_DIR}/update-signature.txt
+    )
+endif()

@@ -4,7 +4,7 @@ This project ports the FreeRTOS OTA PAL based on PSA API.
 
 PSA is Platform Security Architecture which is initiated by Arm. Please get the details from this [link](https://www.arm.com/why-arm/architecture/platform-security-architecture).
 
-In general, this porting maps the FreeRTOS OTA PAL APIs to PSA Firmware Update and Crypto APIs. It follows the PSA Firmware Update API 0.7 and PSA Cryptography API v1.0 beta3. The process of image write, image verification and image activation are protected by the PSA secure service.
+In general, this porting maps the FreeRTOS OTA PAL APIs to PSA Firmware Update and Crypto APIs. It follows the PSA Firmware Update API v1.0 beta and PSA Cryptography API v1.0 beta3. The process of image write, image verification and image activation are protected by the PSA secure service.
 
 # License
 
@@ -28,7 +28,7 @@ Unless stated otherwise, the software is provided under the [MIT License](https:
 
 [TF-M](https://git.trustedfirmware.org/TF-M/trusted-firmware-m.git/) is a PSA implementation. It implements the PSA Firmware Framework API and developer API such as Secure Storage, Cryptography, Initial Attestation, etc. Refer to [PSA website](https://developer.arm.com/architectures/security-architectures/platform-security-architecture) for more details.
 
-This version of FreeRTOS OTA PAL is supported by TF-M [v1.4.0](https://git.trustedfirmware.org/TF-M/trusted-firmware-m.git/tag/?h=TF-Mv1.4.0) & [v1.5.0](https://git.trustedfirmware.org/TF-M/trusted-firmware-m.git/tag/?h=TF-Mv1.5.0).
+The latest version of FreeRTOS OTA PAL is supported by TF-M [v1.7.0](https://tf-m-user-guide.trustedfirmware.org/releases/index.html).
 
 Please follow the [Build instructions](https://tf-m-user-guide.trustedfirmware.org/docs/technical_references/instructions/tfm_build_instruction.html) of TF-M to build the secure side image for your platform.
 

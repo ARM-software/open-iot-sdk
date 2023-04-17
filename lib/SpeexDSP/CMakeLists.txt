@@ -7,7 +7,7 @@ include(ExternalProject)
 FetchContent_Declare(
     speexdsp
     GIT_REPOSITORY  https://gitlab.xiph.org/xiph/speexdsp
-    GIT_TAG         68311d46785be76d2a186c75578d51108bff6dfb
+    GIT_TAG         738e17905e1ca2a1fa932ddd9c2a85d089f4e845
     GIT_PROGRESS    ON
     # Note: This prevents FetchContent_MakeAvailable() from calling
     # add_subdirectory() on the fetched repository. 

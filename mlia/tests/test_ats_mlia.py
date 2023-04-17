@@ -1,4 +1,4 @@
-#  Copyright (c) 2022 Arm Limited. All rights reserved.
+#  Copyright (c) 2022-2023 Arm Limited. All rights reserved.
 #  SPDX-License-Identifier: Apache-2.0
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,8 +21,13 @@ import re
 def test_ats_run_mlia(pytestconfig, build_path):
     required_patterns = [
         "ML Inference Advisor started",
-        "Supported targets:",
+        "Model Analysis",
+        "Getting the memory usage metrics",
+        "Getting the performance metrics for",
+        "Model Analysis Results",
+        "Operators:",
         "Operator name",
+        "Performance metrics:",
         "Advice Generation",
         "CONV_2D",
     ]
@@ -34,7 +39,7 @@ def test_ats_run_mlia(pytestconfig, build_path):
         shell=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        universal_newlines=True
+        universal_newlines=True,
     ) as proc:
         lines = proc.stdout.readlines()
         assert len(lines) > 2, f"Too few lines in output {lines}"
@@ -44,6 +49,3 @@ def test_ats_run_mlia(pytestconfig, build_path):
             assert found, f"Pattern not found {required_pattern} in output: \n {lines}"
 
         proc.terminate()
-
-    with open(os.path.join(build_path, "mlia/mlia_output.txt")) as saved_output:
-        assert lines == saved_output.readlines()

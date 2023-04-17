@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2022 Arm Limited. All rights reserved.
+ * Copyright (c) 2021-2023 Arm Limited. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,22 +14,21 @@
  * limitations under the License.
  */
 
-LR_CODE (0x28000000 + ((((0) + (0x60000)) + (0x400)))) {
-    ER_CODE (0x28000000 + ((((0) + (0x60000)) + (0x400)))) { ;(((0x320000) - (0x400) - (0x800))) {
+LR_CODE (0x28000000 + ((((0) + (0x50000)) + 0x400))) {
+    ER_CODE (0x28000000 + ((((0) + (0x50000)) + 0x400))) (((0x330000) - 0x400 - 0xC00)) {
         *.o (RESET +First)
-        * (InRoot$$Sections)
         * (+RO)
     }
 
-    ER_DATA 0x28700000 {
+    ER_DATA (0x21000000 + ((0x00200000) / 2)) {
         * (+ZI +RW)
     }
 
-    ARM_LIB_STACK_MSP +0 ALIGN 32 EMPTY (0x0000800) {
+
+    ARM_LIB_STACK +0 ALIGN 32 EMPTY (0x0002800) {
     }
-    ARM_LIB_STACK +0 ALIGN 32 EMPTY (0x0002000) {
-    }
-    ARM_LIB_HEAP +0 ALIGN 8 EMPTY (0x00B0000) {
+
+    ARM_LIB_HEAP +0 ALIGN 8 EMPTY (0x00b0000) {
     }
 
     ;-----------------------------------------------------

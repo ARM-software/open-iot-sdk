@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#  Copyright (c) 2022 Arm Limited. All rights reserved.
+#  Copyright (c) 2022-2023 Arm Limited. All rights reserved.
 #  SPDX-License-Identifier: Apache-2.0
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
@@ -39,7 +39,8 @@ function enable_virt_env {
 
 function create_and_enable_virt_env {
     local VIRT_ENV=$1
-    local VIRTUALENV="$(command -v virtualenv)"
+    local VIRTUALENV
+    VIRTUALENV="$(command -v virtualenv)"
 
     if [[ ! -f "$VIRTUALENV" ]]; then
         pip install --user virtualenv
@@ -51,7 +52,7 @@ function create_and_enable_virt_env {
 }
 
 function install_mlia {
-    pip install mlia==0.3.0
+    pip install mlia==0.6.0
 }
 
 function download_models {
@@ -65,12 +66,11 @@ function download_models {
 
 function install_backends {
     local VHT_PATH="/opt/VHT"
-    local BACKENDS_ORIG="Corstone-300 Corstone-310"
-    local BACKENDS="Corstone-300"
+    local BACKENDS="Corstone-300 Corstone-310"
 
     local failed=""
     for backend in $BACKENDS; do
-        if mlia backend install --path "$VHT_PATH" --noninteractive $backend; then
+        if mlia-backend install --path "$VHT_PATH" --noninteractive "$backend"; then
             echo "mlia: Successfully installed backend: [$backend]"
         else
             failed="${failed}${backend},"
@@ -78,7 +78,7 @@ function install_backends {
     done
     if [ "$failed" != "" ]; then
         echo "mlia: Failed to install backends: [${failed%,}]. Found paths: [$(ls $VHT_PATH/VHT*)]"
-        exit -1
+        exit 1
     fi
 }
 
@@ -112,12 +112,11 @@ function build_mlia {
 
 function mlia_cmd() {
     local parameters="$1"
-    local mlia_output="$2"
 
     local cmd="mlia $parameters"
-    echo "TS: Running [$cmd]" | tee -a "$mlia_output"
+    echo "TS: Running [$cmd]"
 
-    $cmd 2>&1 | tee -a "$mlia_output"
+    $cmd
 }
 
 function run_mlia {
@@ -126,15 +125,9 @@ function run_mlia {
     local BUILD_PATH="$1"
     local VIRT_ENV="$BUILD_PATH/venv"
     local MODELS_DIR="$BUILD_PATH/models"
-    local MLIA_OUTPUT="$BUILD_PATH/mlia_output.txt"
+    local OUTPUT_DIR="$BUILD_PATH"
 
     enable_virt_env "$VIRT_ENV" 0 1
 
-    if [[ -f "$MLIA_OUTPUT" ]]; then
-      rm "$MLIA_OUTPUT"
-    fi
-
-    local COMMON_ARGS="$MODELS_DIR/ds_cnn_l_quantized.tflite --working-dir $BUILD_PATH/mlia_output --verbose"
-    mlia_cmd "operators   $COMMON_ARGS" "$MLIA_OUTPUT"
-    mlia_cmd "performance $COMMON_ARGS" "$MLIA_OUTPUT"
+    mlia_cmd "check --compatibility --performance --target-profile ethos-u55-128 --output-dir $OUTPUT_DIR $MODELS_DIR/ds_cnn_l_quantized.tflite --debug"
 }
