@@ -34,7 +34,7 @@ def test_ats_run_mlia(pytestconfig, build_path):
         shell=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        universal_newlines=True,
+        universal_newlines=True
     ) as proc:
         lines = proc.stdout.readlines()
         assert len(lines) > 2, f"Too few lines in output {lines}"

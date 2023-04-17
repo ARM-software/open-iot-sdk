@@ -6,7 +6,6 @@
 #include "ml_interface.h"
 
 #include "AudioUtils.hpp"
-#include "BufAttributes.hpp"
 #include "Classifier.hpp"
 #include "KwsResult.hpp"
 #include "Labels.hpp"
@@ -36,9 +35,9 @@
 #include <vector>
 
 extern "C" {
-#include "hal/sai_api.h"
 #include "fvp_sai.h"
 #include "hal-toolbox/critical_section_api.h"
+#include "hal/sai_api.h"
 }
 
 #define AUDIO_BLOCK_NUM   (4)
@@ -237,7 +236,7 @@ int AudioDrv_Setup(void (*event_handler)(void *), void *event_handler_ptr)
         return ret;
     }
 
-    ret = mdh_sai_transfer(sai, reinterpret_cast<uint8_t *>(shared_audio_buffer), AUDIO_BLOCK_NUM, NULL);
+    ret = mdh_sai_transfer(sai, (uint8_t *)shared_audio_buffer, AUDIO_BLOCK_NUM, NULL);
 
     if (ret != MDH_SAI_STATUS_NO_ERROR) {
         printf_err("Failed to start audio transfer");
@@ -613,7 +612,7 @@ GetFeatureCalculator(audio::MicroNetKwsMFCC &mfcc, TfLiteTensor *inputTensor, si
     TfLiteQuantization quant = inputTensor->quantization;
 
     if (kTfLiteAffineQuantization == quant.type) {
-        auto *quantParams = static_cast<TfLiteAffineQuantization *>(quant.params);
+        auto *quantParams = (TfLiteAffineQuantization *)quant.params;
         const float quantScale = quantParams->scale->data[0];
         const int quantOffset = quantParams->zero_point->data[0];
 
@@ -760,7 +759,7 @@ static int arm_npu_init(void)
     arm_npu_irq_init();
 
     /* Initialise Ethos-U55 device */
-    const void *ethosu_base_address = reinterpret_cast<const void *>(SEC_ETHOS_U55_BASE);
+    const void *ethosu_base_address = (void *)(SEC_ETHOS_U55_BASE);
 
     if (0
         != (err = ethosu_init(&ethosu_drv,         /* Ethos-U55 driver device pointer */

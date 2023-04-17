@@ -18,7 +18,7 @@ from pytest import fixture
 from aws_test_util import Flags, create_aws_resources, cleanup_aws_resources
 
 
-@fixture(scope="function")
+@fixture(scope='function')
 def aws_resources(build_path, credentials_path):
     flags = Flags(build_path, credentials_path)
     flags = create_aws_resources(flags)
@@ -32,23 +32,22 @@ def aws_resources(build_path, credentials_path):
 def test_ota(aws_resources, fvp):
     # Traces expected in the output
     expectations = [
-        "Starting bootloader",
-        "Booting TF-M v1.6.0",
-        "Starting scheduler from ns main",
-        "Write certificate...",
-        "Firmware version: 0.0.1",
-        "[INF] network up, starting demo",
-        "Found valid event handler for state transition: State=[WaitingForFileBlock], Event=[ReceivedFileBlock]",
-        "Received final block of the update",
-        "Image upgrade secondary slot -> primary slot",
-        "Firmware version: 0.0.2",
+        'Starting bootloader',
+        'Booting TF-M v1.6.0',
+        'Starting scheduler from ns main',
+        'Write certificate...',
+        'Firmware version: 0.0.1',
+        '[INF] network up, starting demo',
+        'Found valid event handler for state transition: State=[WaitingForFileBlock], Event=[ReceivedFileBlock]',
+        'Received final block of the update',
+        'Image upgrade secondary slot -> primary slot',
+        'Firmware version: 0.0.2',
     ]
 
     fails = [
-        "Failed to provision device private key",
-        "Failed job document content check",
-        "Failed to execute state transition handler",
-        "Failed to send blink_event message to ui_msg_queue",
+        'Failed to provision device private key',
+        'Failed job document content check',
+        'Failed to execute state transition handler'
     ]
 
     index = 0
@@ -60,7 +59,7 @@ def test_ota(aws_resources, fvp):
         line = fvp.stdout.readline()
         if not line:
             break
-        line = line.decode("utf-8")
+        line = line.decode('utf-8')
         line = line.rstrip()
         print(line)
         if expectations[index] in line:

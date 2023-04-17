@@ -26,7 +26,7 @@ BUILD_PATH="$ROOT/build"
 CREDENTIALS_PATH="$ROOT/bsp/default_credentials"
 TARGET="Corstone-300"
 TARGET_PROCESSOR=""
-RTOS="RTX"
+RTOS="FREERTOS"
 ENDPOINT="AWS"
 BUILD=1
 
@@ -59,19 +59,6 @@ function build_with_cmake {
     )
 }
 
-function show_supported_rtos_endpoint_combination {
-    echo "ENDPOINT=$ENDPOINT does not support RTOS=$RTOS"
-    cat <<EOF
-Supported RTOS and Endpoint combination:
-
-|            | AWS   | AZURE | AZURE_NETXDUO |
-| RTX        | ✔️     | ✔️     |      ✘        |
-| FREERTOS   | ✔️     | ✘     |      ✘        |
-| THREADX    | ✘     | ✔️     |      ✔️        |
-EOF
-}
-
-
 function show_usage {
     cat <<EOF
 Usage: $0 [options] example
@@ -84,7 +71,7 @@ Options:
     -p,--path        Build path
     -a,--credentials Credentials path
     -t,--target      Build target (Corstone-300 or Corstone-310)
-    -r,--rtos        RTOS selection (RTX | FREERTOS | THREADX)
+    -r,--rtos        RTOS selection (FREERTOS | RTX | THREADX)
     -e,--endpoint    Cloud client type
     --configure-only Create build tree but do not build
 
@@ -180,26 +167,10 @@ case "$TARGET" in
 esac
 
 case "$ENDPOINT" in
-    AWS )
-      if [ "$RTOS" == THREADX ]; then
-        show_supported_rtos_endpoint_combination
-        exit 2
-      fi
-        ;;
-    AZURE )
-      if [ "$RTOS" == FREERTOS ]; then
-        show_supported_rtos_endpoint_combination
-        exit 2
-      fi
+    AWS | AZURE )
       ;;
-    AZURE_NETXDUO )
-      if [ "$RTOS" != THREADX ]; then
-        show_supported_rtos_endpoint_combination
-        exit 2
-      fi
-       ;;
     *)
-      echo "Invalid endpoint <AWS | AZURE | AZURE_NETXDUO>"
+      echo "Invalid endpoint <AWS | AZURE>"
       show_usage
       exit 2
       ;;

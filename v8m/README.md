@@ -10,7 +10,7 @@ The software supports multiple configurations of the Arm Corstone-300 and Corsto
 
 ## Keyword detection application
 
-The keyword detection application runs the DS-CNN model on top of [CMSIS-RTOS2](https://arm-software.github.io/CMSIS_5/RTOS2/html/index.html) implemented by [RTX](https://arm-software.github.io/CMSIS_5/RTOS2/html/rtx5_impl.html), [FreeRTOS](https://freertos.org/a00104.html#getting-started) or [ThreadX](https://learn.microsoft.com/en-gb/azure/rtos/threadx/overview-threadx). It detects keywords and inform the user of which keyword has been spotted. The audio data to process are injected at run time using the [Arm Virtual Hardware](https://www.arm.com/virtual-hardware) audio driver.
+The keyword detection application runs the DS-CNN model on top of [FreeRTOS](https://freertos.org/a00104.html#getting-started), [CMSIS-RTOS2](https://arm-software.github.io/CMSIS_5/RTOS2/html/index.html) or [ThreadX](https://learn.microsoft.com/en-gb/azure/rtos/threadx/overview-threadx). It detects keywords and inform the user of which keyword has been spotted. The audio data to process are injected at run time using the [Arm Virtual Hardware](https://www.arm.com/virtual-hardware) audio driver.
 
 The Keyword application connects to [AWS IoT](https://docs.aws.amazon.com/iot/latest/developerguide/what-is-aws-iot.html) or [Azure IoT](https://learn.microsoft.com/en-gb/azure/iot-fundamentals/iot-introduction) to publish recognised keywords. AWS IoT cloud is also used for OTA firmware updates. These firmware updates are securely applied using [Trusted Firmware-M](https://tf-m-user-guide.trustedfirmware.org/). For more information, refer to the keyword detection [Readme](./examples/keyword/README.md).
 
@@ -18,7 +18,7 @@ The Keyword application connects to [AWS IoT](https://docs.aws.amazon.com/iot/la
 
 ## Speech recognition application
 
-The speech detection application runs a tiny version of the ASR model on top of [CMSIS-RTOS2](https://arm-software.github.io/CMSIS_5/RTOS2/html/index.html) implemented by [RTX](https://arm-software.github.io/CMSIS_5/RTOS2/html/rtx5_impl.html), [FreeRTOS](https://freertos.org/a00104.html#getting-started) or [ThreadX](https://learn.microsoft.com/en-gb/azure/rtos/threadx/overview-threadx). It detects sentences and informs the user which sentence has been spotted. The audio data to be processed is injected at run time using the [Arm Virtual Hardware](https://www.arm.com/virtual-hardware) audio driver.
+The speech detection application runs a tiny version of the ASR model on top of [FreeRTOS](https://freertos.org/a00104.html#getting-started), [CMSIS-RTOS2](https://arm-software.github.io/CMSIS_5/RTOS2/html/index.html) or [ThreadX](https://learn.microsoft.com/en-gb/azure/rtos/threadx/overview-threadx). It detects sentences and informs the user which sentence has been spotted. The audio data to be processed is injected at run time using the [Arm Virtual Hardware](https://www.arm.com/virtual-hardware) audio driver.
 
 The speech detection application connects to [AWS IoT](https://docs.aws.amazon.com/iot/latest/developerguide/what-is-aws-iot.html) or [Azure IoT](https://learn.microsoft.com/en-gb/azure/iot-fundamentals/iot-introduction) to publish recognised sentences.
 
@@ -28,7 +28,7 @@ The architecture of this solution is similar to the keyword application.
 
 ## Blinky application
 
-The blinky application demonstrate blinking LEDs using Arm Virtual Hardware.
+The blinky application demonstrate blinking LEDs using Arm Virtual Hardware. FreeRTOS is already included in the application to kickstart new developments.
 
 # Quick Start
 
@@ -232,28 +232,17 @@ Build the keyword application:
 ./ats.sh build keyword
 ```
 
-This will by default build the application in the `build` directory for the `Corstone-300` target using the `RTX` OS. This is equivalent to:
+This will by default build the application in the `build` directory for the `Corstone-300` target using the `FreeRTOS` OS. This is equivalent to:
 
 ```sh
-./ats.sh build keyword --target Corstone-300 --rtos RTX --path build
+./ats.sh build keyword --target Corstone-300 --rtos FREERTOS --path build
 ```
 
 To build for Corstone-310 use `--target Corstone-310`.
 
-To build using the FreeRTOS RTOS implementation use `--rtos FREERTOS`, although note that FreeRTOS is only tested with AWS connectivity, not Azure.
+To build using the RTX RTOS implementation use `--rtos RTX`.
 
-To build using the ThreadX RTOS implementation use `--rtos THREADX`, although note that ThreadX is only tested with Azure connectivity, not AWS. It is also the only valid choice for NetX Duo.
-
-When no `--rtos` option is passed, `RTX` is implied, although note that RTX is only compatible with AWS and Azure IoT C SDKs and Libraries, not the Azure RTOS NetX Duo Azure IoT Middleware.
-
-See the example RTOS and endpoint compatibility table below:
-
-|            |       |       |               |
-| ---        | :---: | :---: |  :---:        |
-|            | AWS   | AZURE | AZURE_NETXDUO |
-| RTX        | ✔️     | ✔️    |      ❌      |
-| FREERTOS   | ✔️     | ❌    |      ❌      |
-| THREADX    | ❌    | ✔️     |      ✔️       |
+To build using the ThreadX RTOS implementation use `--rtos THREADX`, although note that ThreadX is only tested with Azure connectivity, not AWS.
 
 You can have multiple builds with different parameters side by side by changing the `--path` parameter to something unique to each build configuration. This speed up the re-build process when working with multiple targets and RTOS.
 
@@ -474,8 +463,6 @@ To create a new Azure IoT Hub and one device within it through the web portal fo
 
 Now that you have created a device in your IoT Hub, the application must be configured to connect to the Azure IoT Hub with the credentials of the device created.
 
-### Azure IoT C SDKs and Libraries
-
 Within the application directory that you are using, edit the `bsp/default_credentials/iothub_credentials.h` file.
 
 You must set the define `IOTHUB_DEVICE_CONNECTION_STRING` to the value of the device's `Primary Connection String`. This value can be [retrieved](https://docs.microsoft.com/en-us/azure/iot-hub/iot-hub-create-through-portal#register-a-new-device-in-the-iot-hub) in the portal.
@@ -486,31 +473,13 @@ This is done through setting defines in the same `bsp/default_credentials/iothub
 `IOTHUB_DPS_ENDPOINT`, `IOTHUB_DPS_ID_SCOPE`, `IOTHUB_DPS_REGISTRATION_ID`, `IOTHUB_DPS_KEY` must all be set.
 To obtain the values follow [Azure documentation](https://docs.microsoft.com/en-us/azure/iot-dps/quick-setup-auto-provision).
 
-### NetX Duo Azure IoT Middleware for Azure RTOS
-
-The device connects to the IoTHub using a symmetric key. To register a new device in IoTHub, follow the [doc](https://docs.microsoft.com/en-us/azure/iot-hub/iot-hub-create-through-portal#register-a-new-device-in-the-iot-hub) to create a device with a symmetric key authentication.
-
-After device's registration is complete, copy the connection string for the device with following format **HostName=<>;DeviceId=<>;SharedAccessKey=<>** to `bsp/default_credentials/azure_iot_credentials.h`.
-
-```c
-#define HOST_NAME                                   "<Hostname from connection string>"
-#define DEVICE_ID                                   "<DeviceId from connection string>"
-#define DEVICE_SYMMETRIC_KEY                        "<SharedAccessKey from connection string>"
-```
-
 ## Build the application to connect to your Azure IoT Hub
 
-The application selects a cloud client at build time. This is achieved by adding the flag `-e <AZURE|AZURE_NETXDUO|AWS>` to the build command line.
-To build a version of keyword connecting to the Azure cloud on Corstone-300 and using RTX and [Azure IoT C SDKs and Libraries](https://github.com/Azure/azure-iot-sdk-c), use the following command line:
+The application selects a cloud client (Aws or Azure) at build time. This is achieved by adding the flag `-e <AZURE|AWS>` to the build command line.
+To build a version of keyword connecting to the Azure cloud on Corstone-300 and using FreeRTOS, use the following command line:
 
 ```sh
 ./ats.sh build keyword -e AZURE
-```
-
-To build a version of keyword connecting to the Azure cloud on Corstone-300 and using ThreadX and the Azure RTOS NetX Duo Azure IoT Middleware [Azure IoT Middleware for Azure RTOS](https://github.com/azure-rtos/netxduo/tree/master/addons/azure_iot), use the following command line:
-
-```sh
-./ats.sh build keyword --rtos THREADX -e AZURE_NETXDUO
 ```
 
 ## Monitoring messages sent to your Azure IoT Hub
@@ -547,8 +516,7 @@ Execute the following script located in the application repository.
     - `source`: Source folder
       - `main_ns.c`: Entry point of the keyword application.
       - `aws_demo.c`: AWS IoT specific code of the keyword application.
-      - `azure_demo.c`: Azure IoT Hub specific code of the keyword application using Azure IoT C SDKs and Libraries.
-      - `azure_netxduo_demo.c`: Azure IoT Hub specific code of the keyword application using NetX Duo Azure IoT Middleware.
+      - `azure_demo.c`: Azure IoT Hub specific code of the keyword application.
       - `blink_task.c`: Blinky/UX thread of the application.
       - `ml_interface.c`: Interface between the virtual streaming solution and tensor flow.
       - `ethosu_platform_adaptation.c`: RTOS adapatation for the Ethos U55.
@@ -557,8 +525,7 @@ Execute the following script located in the application repository.
     - `source`: Source folder
       - `main_ns.c`: Entry point of the speech application.
       - `aws_demo.c`: AWS IoT specific code of the speech application.
-      - `azure_demo.c`: Azure IoT Hub specific code of the speech application using Azure IoT C SDKs and Libraries.
-      - `azure_netxduo_demo.c`: Azure IoT Hub specific code of the keyword application using NetX Duo Azure IoT Middleware.
+      - `azure_demo.c`: Azure IoT Hub specific code of the speech application.
       - `blink_task.c`: Blinky/UX thread of the application.
       - `ml_interface.c`: Interface between the virtual streaming solution and tensor flow.
       - `ethosu_platform_adaptation.c`: RTOS adapatation for the Ethos U55.

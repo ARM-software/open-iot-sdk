@@ -267,8 +267,8 @@ void azure_task(void *arg)
     if (!valid_connection_string && !valid_provisioning_config) {
         printf("Please change IOTHUB_DEVICE_CONNECTION_STRING or add provisioning configuration"
                "to setup the cloud connection\r\n");
-        ml_task_inference_start();
         dsp_task_start();
+        ml_task_inference_start();
         osThreadTerminate(osThreadGetId());
         return;
     }
@@ -443,7 +443,7 @@ void azure_task(void *arg)
                 }
             } break;
             case APP_EVENT_SEND_MSG_OK:
-                printf("Message sent\r\n");
+                printf("Ack message\r\n");
                 break;
             case APP_EVENT_IOT_HUB_CONNECTION_DOWN:
                 iotHubConnected = false;

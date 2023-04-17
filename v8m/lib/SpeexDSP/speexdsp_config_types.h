@@ -1,7 +1,3 @@
-/* Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
- * SPDX-License-Identifier: Apache-2.0
- */
-
 #ifndef __SPEEX_TYPES_H__
 #define __SPEEX_TYPES_H__
 

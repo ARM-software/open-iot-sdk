@@ -1,14 +1,2 @@
-# Default code owners for Merge Requests
-* @Vincent.Coubard @Paul.Szczepanek @Jaeden.Amero @Hugues.KambaMpiana @Lingkai.Dong
-
-## These files shall be auto approved by autobot
-# license file
-LICENSE.md @team-autobot
-# cmake files
-**/*.cmake @team-autobot
-**/CMakeLists.txt @team-autobot
-# pipeline related files
-.gitlab/**/*.yml @team-autobot
-.gitlab-ci.yml @team-autobot
-# pre-commit configuration file
-.pre-commit-config.yaml @team-autobot
+# Default codeowners for PRs
+* @Vincent.Coubard @Paul.Szczepanek

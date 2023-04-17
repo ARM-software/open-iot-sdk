@@ -1,3 +1,5 @@
+#!/bin/bash
+
 #  Copyright (c) 2021 Arm Limited. All rights reserved.
 #  SPDX-License-Identifier: Apache-2.0
 #
@@ -13,9 +15,5 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import pytest
-
-
-@pytest.fixture
-def binary_path(build_path):
-    yield build_path + '/examples/keyword/keyword_signed.bin'
+export ARMLMD_LICENSE_FILE=7010@cam-lic03.cambridge.arm.com:7010@cam-lic04.cambridge.arm.com:7010@cam-lic05.cambridge.arm.com:7010@cam-lic07.cambridge.arm.com
+export ARM_TOOL_VARIANT=ult

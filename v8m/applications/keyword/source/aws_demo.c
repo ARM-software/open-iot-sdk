@@ -2,8 +2,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "iotsdk/ip_network_api.h"
 #include "cmsis_os2.h"
+#include "iotsdk/ip_network_api.h"
 
 #include <stdbool.h>
 #include <stdio.h>

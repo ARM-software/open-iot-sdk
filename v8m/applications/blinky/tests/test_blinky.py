@@ -7,22 +7,22 @@ import pytest
 
 @pytest.fixture
 def binary_path(build_path):
-    yield build_path + "/examples/blinky/blinky_signed.bin"
+    yield build_path + '/examples/blinky/blinky_signed.bin'
 
 
 def test_blinky(fvp):
-    # Traces expected in the output
+    # Traces expected in the output
     expectations = [
-        "Starting bootloader",
-        "Booting TF-M v1.6.0",
-        "Initialising kernel",
-        "Starting kernel and threads",
-        "The LED started blinking...",
-        "LED on",
-        "LED off",
-        "LED on",
-        "LED off",
-        "LED on",
+        'Starting bootloader',
+        'Booting TF-M v1.6.0',
+        'Initialising kernel',
+        'Starting kernel and threads',
+        'The LED started blinking...',
+        'LED on',
+        'LED off',
+        'LED on',
+        'LED off',
+        'LED on',
     ]
 
     index = 0
@@ -34,7 +34,7 @@ def test_blinky(fvp):
         line = fvp.stdout.readline()
         if not line:
             break
-        line = line.decode("utf-8")
+        line = line.decode('utf-8')
         line = line.rstrip()
         print(line)
         if expectations[index] in line:

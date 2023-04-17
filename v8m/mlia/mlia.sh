@@ -51,7 +51,7 @@ function create_and_enable_virt_env {
 }
 
 function install_mlia {
-    pip install mlia==0.5.0
+    pip install mlia==0.3.0
 }
 
 function download_models {
@@ -65,11 +65,12 @@ function download_models {
 
 function install_backends {
     local VHT_PATH="/opt/VHT"
-    local BACKENDS="Corstone-300 Corstone-310"
+    local BACKENDS_ORIG="Corstone-300 Corstone-310"
+    local BACKENDS="Corstone-300"
 
     local failed=""
     for backend in $BACKENDS; do
-        if mlia-backend install --path "$VHT_PATH" --noninteractive $backend; then
+        if mlia backend install --path "$VHT_PATH" --noninteractive $backend; then
             echo "mlia: Successfully installed backend: [$backend]"
         else
             failed="${failed}${backend},"

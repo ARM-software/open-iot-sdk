@@ -17,21 +17,19 @@ from timeit import default_timer as timer
 
 
 def test_ml(fvp):
-    # Traces expected in the output
+    # Traces expected in the output
     expectations = [
-        "Starting bootloader",
-        "Booting TF-M v1.6.0",
-        "Starting scheduler from ns main",
-        "Ethos-U55 device initialised",
-        "ML interface initialised",
-        "ML_HEARD_ON",
-        "ML_HEARD_OFF",
-        "ML UNKNOWN",
-        "ML_HEARD_GO",
-        "ML UNKNOWN",
+        'Starting bootloader',
+        'Booting TF-M v1.6.0',
+        'Starting scheduler from ns main',
+        'Ethos-U55 device initialised',
+        'ML interface initialised',
+        'ML_HEARD_ON',
+        'ML_HEARD_OFF',
+        'ML UNKNOWN',
+        'ML_HEARD_GO',
+        'ML UNKNOWN'
     ]
-
-    fails = ["Failed to send blink_event message to ui_msg_queue"]
 
     index = 0
     start = timer()
@@ -42,15 +40,13 @@ def test_ml(fvp):
         line = fvp.stdout.readline()
         if not line:
             break
-        line = line.decode("utf-8")
+        line = line.decode('utf-8')
         line = line.rstrip()
         print(line)
         if expectations[index] in line:
             index += 1
             if index == len(expectations):
                 break
-        for x in fails:
-            assert x not in line
         current_time = timer()
 
     assert index == len(expectations)

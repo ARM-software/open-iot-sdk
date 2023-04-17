@@ -2,8 +2,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "iotsdk/ip_network_api.h"
 #include "cmsis_os2.h"
+#include "iotsdk/ip_network_api.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -44,8 +44,8 @@ void network_state_callback(network_state_callback_event_t status)
             printf("[ERR] Set the right configuration and credentials in aws_clientcredential.h and "
                    "aws_clientcredential_keys.h\r\n");
             // Start the inference directly
-            ml_task_inference_start();
             dsp_task_start();
+            ml_task_inference_start();
         } else {
             DEMO_RUNNER_RunDemos();
         }

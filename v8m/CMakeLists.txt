@@ -7,10 +7,9 @@ include(ExternalProject)
 include(FetchContent)
 
 # CMake processes toolchain file during first call to project(), so it needs to exist first
-FetchContent_Declare(
-    iotsdk-toolchains
+FetchContent_Declare(iotsdk-toolchains
     GIT_REPOSITORY  https://git.gitlab.arm.com/iot/open-iot-sdk/toolchain.git
-    GIT_TAG         c82c133e270e5631e3ba355fa0baa626123def0f
+    GIT_TAG         6133b1de96ca069bcdd2e74876e62a338bf5c928
     SOURCE_DIR      ${CMAKE_BINARY_DIR}/toolchains
 )
 FetchContent_MakeAvailable(iotsdk-toolchains)
@@ -48,58 +47,47 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "The build type" FORCE)
 endif()
 
-set(FETCHCONTENT_QUIET OFF)
-
 # Declare the Open IoT SDK
 FetchContent_Declare(
   open_iot_sdk
   GIT_REPOSITORY https://git.gitlab.arm.com/iot/open-iot-sdk/sdk.git
-  GIT_TAG        546e9fef3e7842ebb200efa079a7753c2e4b9ee9
+  GIT_TAG        e71066cfbe4e1dc21bcf0a88840ea8e88625de24
 )
 
-# Select Open IoT SDK components
-
-set(IOTSDK_FETCH_LIST
-    trusted-firmware-m
-    ml-embedded-evaluation-kit
-    cmsis-5
-    mcu-driver-reference-platforms-for-arm
-    mbedtls
-    lwip
-    cmsis-sockets-api
-)
-
+# Declare the Open IoT SDK configuration flags
 if(${RTOS} STREQUAL "FREERTOS")
-    list(APPEND IOTSDK_FETCH_LIST cmsis-freertos)
+  set(IOTSDK_FREERTOS ON)
 elseif(${RTOS} STREQUAL "RTX")
-    list(APPEND IOTSDK_FETCH_LIST cmsis-5)
+  set(IOTSDK_CMSIS_RTX ON)
 elseif(${RTOS} STREQUAL "THREADX")
-    list(APPEND IOTSDK_FETCH_LIST threadx threadx-cdi-port)
+  set(IOTSDK_THREADX ON)
+  set(IOTSDK_THREADX_CDI_PORT ON)
 endif()
 
-if(${CLOUD_CLIENT} STREQUAL "AWS")
-    list(APPEND IOTSDK_FETCH_LIST aws-iot-device-sdk-embedded-c)
-elseif(${CLOUD_CLIENT} STREQUAL "AZURE")
-    list(APPEND IOTSDK_FETCH_LIST azure-iot-sdk-c)
-elseif(${CLOUD_CLIENT} STREQUAL "AZURE_NETXDUO")
-    list(APPEND IOTSDK_FETCH_LIST netxduo)
-    # By default, NetX Duo changes WARNINGS_AS_ERRORS to ON
-    set(WARNINGS_AS_ERRORS OFF)
-endif()
-
-
-# Configure TrustedFirmware-M
+set(IOTSDK_TFM ON)
+set(IOTSDK_ML ON)
+set(IOTSDK_CMSIS_RTOS_API ON)
+set(IOTSDK_MDH_ARM ON)
+set(FETCHCONTENT_QUIET OFF)
 set(TFM_PLATFORM "${CMAKE_CURRENT_SOURCE_DIR}/${TFM_PLATFORM_LOCAL_PATH}")
 set(TFM_PARTITION_FIRMWARE_UPDATE ON)
 set(CONFIG_TFM_ENABLE_FPU ON)
-set(TFM_CMAKE_ARGS "-DNS=ON;-DPLATFORM_DEFAULT_UART_STDOUT=ON;-DMCUBOOT_SIGNATURE_KEY_LEN=2048;-DITS_MAX_ASSET_SIZE=1300;-DCRYPTO_ENGINE_BUF_SIZE=0x8000;-DMCUBOOT_LOG_LEVEL=INFO;-DTFM_SPM_LOG_LEVEL=TFM_SPM_LOG_LEVEL_INFO")
-
-# Extra arguments for ML
-set(ML_CMAKE_ARGS "-DTARGET_SUBSYSTEM=${ML_TARGET_SUBSYSTEM};-DETHOS_U_NPU_CONFIG_ID=${ETHOS_U_NPU_CONFIG_ID};-DETHOSU_TARGET_NPU_CONFIG=${ETHOSU_TARGET_NPU_CONFIG}")
-set(ML_TARGETS cmsis-dsp tensorflow_build kws asr)
-if(${TS_TARGET} STREQUAL "Corstone-300")
-    list(APPEND ML_TARGETS timing_adapter)
+set(IOTSDK_MBEDTLS ON)
+if(${CLOUD_CLIENT} STREQUAL "AWS")
+  set(IOTSDK_AWS_CLIENT ON)
+elseif(${CLOUD_CLIENT} STREQUAL "AZURE")
+  set(IOTSDK_AZURE_SDK ON)
 endif()
+set(IOTSDK_LWIP ON)
+set(IOTSDK_LWIP_SOCKETS ON)
+set(IOTSDK_IP_NETWORK ON)
+set(IOTSDK_LWIP_CMSIS_IP_NETWORK ON)
+set(IOTSDK_EXAMPLES OFF)
+
+# Extra arguments for TF-M and ML
+set(TFM_CMAKE_ARGS "-DNS=ON;-DPLATFORM_DEFAULT_UART_STDOUT=ON;-DMCUBOOT_SIGNATURE_KEY_LEN=2048;-DITS_MAX_ASSET_SIZE=1300;-DCRYPTO_ENGINE_BUF_SIZE=0x8000;-DMCUBOOT_LOG_LEVEL=INFO;-DTFM_SPM_LOG_LEVEL=TFM_SPM_LOG_LEVEL_INFO")
+set(ML_CMAKE_ARGS "-DTARGET_SUBSYSTEM=${ML_TARGET_SUBSYSTEM};-DETHOS_U_NPU_CONFIG_ID=${ETHOS_U_NPU_CONFIG_ID};-DETHOSU_TARGET_NPU_CONFIG=${ETHOSU_TARGET_NPU_CONFIG}")
+set(ML_TARGETS cmsis-dsp timing_adapter tensorflow_build kws asr)
 
 # Apply ML patch to use tiny asr model
 find_package(Git)
@@ -115,18 +103,11 @@ set(VARIANT "FVP")
 # Note that this must be set before the IoT SDK is added
 set(TX_USER_FILE "${PRJ_DIR}/bsp/threadx-config/tx_user.h")
 
-set(NXD_ENABLE_AZURE_IOT ON CACHE BOOL "")
-set(NXD_ENABLE_FILE_SERVERS OFF CACHE BOOL "")
-# NetX Duo (if enabled) will use NX_USER_FILE to locate its configuration file
-# Note that this must be set before the IoT SDK is added
-set(NX_USER_FILE "${PRJ_DIR}/bsp/netxduo-config/nx_user.h")
-
 # Make the Open IoT SDK available
 FetchContent_MakeAvailable(open_iot_sdk)
 
 # Fetch project_options
-FetchContent_Declare(
-    project_options
+FetchContent_Declare(project_options
     GIT_REPOSITORY  https://github.com/cpp-best-practices/project_options.git
     GIT_TAG         v0.21.0
 )
@@ -134,7 +115,7 @@ FetchContent_MakeAvailable(project_options)
 include(${project_options_SOURCE_DIR}/Index.cmake)
 include(${project_options_SOURCE_DIR}/src/DynamicProjectOptions.cmake)
 
-include(${open_iot_sdk_SOURCE_DIR}/cmake/AddToolchainWarningFlags.cmake)
+include(${open_iot_sdk_SOURCE_DIR}/cmake/warning_flags.cmake)
 set(GCC_WARNINGS ${IOTSDK_WARNING_FLAGS} ${IOTSDK_WARNING_AS_ERRORS_FLAGS})
 set(CLANG_WARNINGS ${GCC_WARNINGS})
 
@@ -147,7 +128,10 @@ dynamic_project_options(
 
 # get paths for the ml kit
 
-FetchContent_GetProperties(ml-embedded-evaluation-kit)
+ExternalProject_Get_Property(ml-embedded-evaluation-kit SOURCE_DIR)
+ExternalProject_Get_Property(ml-embedded-evaluation-kit BINARY_DIR)
+set(ml-embedded-evaluation-kit_SOURCE_DIR  "${SOURCE_DIR}")
+set(ml-embedded-evaluation-kit_BINARY_DIR  "${BINARY_DIR}")
 set(ml-embedded-evaluation-kit_GENERATED_DIR "${ml-embedded-evaluation-kit_BINARY_DIR}/generated")
 set(ml-embedded-evaluation-kit_LIB_DIR ${ml-embedded-evaluation-kit_BINARY_DIR}/lib)
 
@@ -157,7 +141,7 @@ set(ml-embedded-evaluation-kit_LIB_DIR ${ml-embedded-evaluation-kit_BINARY_DIR}/
 set(APP_CONFIG_CREDENTIALS_PATH "${PRJ_DIR}/bsp/default_credentials" CACHE STRING "Path to credentials")
 
 # Include module path from Open IoT SDK
-list(APPEND CMAKE_MODULE_PATH ${open_iot_sdk_SOURCE_DIR}/components/trusted-firmware-m)
+list(APPEND CMAKE_MODULE_PATH ${open_iot_sdk_SOURCE_DIR}/components/TF-M)
 list(APPEND CMAKE_MODULE_PATH ${open_iot_sdk_SOURCE_DIR}/cmake)
 
 # Configuration of executable
@@ -165,22 +149,17 @@ set(EXE_SUFFIX ".axf")
 set(CMAKE_EXECUTABLE_SUFFIX ${EXE_SUFFIX})
 
 # Include modules from the SDK
-include(ConvertElfToBin)
-include(SignTfmImage)
+include(ElfToBin)
+include(TfmSignImage)
 
 # Test management
 include(CTest)
 
-if(${RTOS} STREQUAL "FREERTOS")
+if(TARGET freertos-kernel)
   # Patch the FreeRTOS target to match config requirements
   target_include_directories(freertos-kernel
-      PUBLIC
+      INTERFACE
           ${PRJ_DIR}/bsp/freertos-config
-  )
-  target_link_libraries(freertos-kernel
-      PUBLIC
-          aws-configs
-          cmsis-core
   )
 endif()
 
@@ -195,34 +174,23 @@ endif()
 # Declare RTOS interface target
 add_library(cmsis-rtos-implementation INTERFACE)
 
-target_link_libraries(cmsis-rtos-implementation
-    INTERFACE
-        cmsis-rtos-api
-)
-
-if(${RTOS} STREQUAL "FREERTOS")
-    target_link_libraries(cmsis-rtos-api
-        PUBLIC
+if(TARGET freertos-kernel)
+    target_link_libraries(cmsis-rtos-implementation
+        INTERFACE
             freertos-cmsis-rtos
             freertos-kernel-heap-3
     )
-elseif(${RTOS} STREQUAL "RTX")
-    target_link_libraries(cmsis-rtos-api
-        PUBLIC
+elseif(TARGET cmsis-rtx)
+    target_link_libraries(cmsis-rtos-implementation
+        INTERFACE
             cmsis-rtx
+            cmsis-rtos-api
+            cmsis-rtx-freertos-alloc-wrapper
     )
+elseif(TARGET threadx-cdi-port)
     target_link_libraries(cmsis-rtos-implementation
         INTERFACE
-            heap-alloc-wrapper
-    )
-elseif(${RTOS} STREQUAL "THREADX")
-    target_link_libraries(cmsis-rtos-api
-        PUBLIC
             threadx-cdi-port
-    )
-    target_link_libraries(cmsis-rtos-implementation
-        INTERFACE
-            heap-alloc-wrapper
     )
 endif()
 
@@ -300,13 +268,13 @@ elseif(${CLOUD_CLIENT} STREQUAL "AZURE")
     )
 endif()
 
-# Add application targets
-add_subdirectory(applications/speech)
-add_subdirectory(applications/keyword)
-add_subdirectory(applications/blinky)
+# Add examples targets
+add_subdirectory(examples/speech)
+add_subdirectory(examples/keyword)
+add_subdirectory(examples/blinky)
 
 # Copy tf-m binaries at the root
-FetchContent_GetProperties(trusted-firmware-m)
+FetchContent_GetProperties(tf-m)
 
 add_custom_target(tfm-binaries
   BYPRODUCTS
@@ -316,21 +284,21 @@ add_custom_target(tfm-binaries
     ${CMAKE_BINARY_DIR}/secure_partition/tfm_s_signed.bin
 
   COMMAND ${CMAKE_COMMAND} -E copy
-    ${trusted-firmware-m_BINARY_DIR}/install/outputs/bl2.axf
+    ${tf-m_BINARY_DIR}/install/outputs/bl2.axf
     "${CMAKE_CURRENT_BINARY_DIR}/bootloader/bl2${CMAKE_EXECUTABLE_SUFFIX}"
 
   COMMAND ${CMAKE_COMMAND} -E copy
-    ${trusted-firmware-m_BINARY_DIR}/install/outputs/tfm_s.axf
+    ${tf-m_BINARY_DIR}/install/outputs/tfm_s.axf
     "${CMAKE_CURRENT_BINARY_DIR}/secure_partition/tfm_s${CMAKE_EXECUTABLE_SUFFIX}"
 
   COMMAND
     ${ARM_ELF2BIN} --bin --output ${CMAKE_BINARY_DIR}/secure_partition/tfm_s_unsigned.bin ${CMAKE_BINARY_DIR}/secure_partition/tfm_s${CMAKE_EXECUTABLE_SUFFIX} --bincombined
 
   COMMAND
-    python3 ${trusted-firmware-m_BINARY_DIR}/install/image_signing/scripts/wrapper/wrapper.py
+    python3 ${tf-m_BINARY_DIR}/install/image_signing/scripts/wrapper/wrapper.py
         -v 0.0.1
         --layout ${PRJ_DIR}/bsp/signing_layout_s.c
-        -k ${trusted-firmware-m_SOURCE_DIR}/bl2/ext/mcuboot/root-RSA-2048.pem
+        -k ${tf-m_SOURCE_DIR}/bl2/ext/mcuboot/root-RSA-2048.pem
         --public-key-format full
         --align 1
         --pad
@@ -341,5 +309,5 @@ add_custom_target(tfm-binaries
         ${CMAKE_BINARY_DIR}/secure_partition/tfm_s_signed.bin
 )
 
-add_dependencies(tfm-binaries trusted-firmware-m-build)
+add_dependencies(tfm-binaries tf-m-build)
 add_dependencies(tfm-ns-interface tfm-binaries)

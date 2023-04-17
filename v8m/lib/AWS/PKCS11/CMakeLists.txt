@@ -3,8 +3,8 @@
 
 add_library(PKCS11 STATIC EXCLUDE_FROM_ALL
     # PKCS 11
-    "${aws-iot-device-sdk-embedded-c_SOURCE_DIR}/libraries/standard/corePKCS11/source/core_pkcs11.c"
-    "${aws-iot-device-sdk-embedded-c_SOURCE_DIR}/libraries/standard/corePKCS11/source/core_pki_utils.c"
+    "${aws-iot-device-sdk_SOURCE_DIR}/libraries/standard/corePKCS11/source/core_pkcs11.c"
+    "${aws-iot-device-sdk_SOURCE_DIR}/libraries/standard/corePKCS11/source/core_pki_utils.c"
 
     # PKCS11 - PSA
     "../aws_libraries/abstractions/pkcs11/psa/iot_pkcs11_psa.c"
@@ -19,8 +19,8 @@ target_include_directories(PKCS11
         "../aws_libraries/abstractions/platform/freertos/include"
         "../aws_libraries/abstractions/platform/freertos/include/platform"
         "../aws_libraries/c_sdk/standard/common/include/private"
-        "${aws-iot-device-sdk-embedded-c_SOURCE_DIR}/libraries/standard/corePKCS11/source/include"
-        "${aws-iot-device-sdk-embedded-c_SOURCE_DIR}/libraries/standard/corePKCS11/source/dependency/3rdparty/pkcs11"
+        "${aws-iot-device-sdk_SOURCE_DIR}/libraries/standard/corePKCS11/source/include"
+        "${aws-iot-device-sdk_SOURCE_DIR}/libraries/standard/corePKCS11/source/dependency/3rdparty/pkcs11"
         "../aws_libraries/abstractions/pkcs11/corePKCS11/source/dependency/3rdparty/mbedtls_utils"
     PRIVATE
         "../aws_libraries/3rdparty/pkcs11"

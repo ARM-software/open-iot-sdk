@@ -23,20 +23,8 @@ repos:
     rev: v14.0.4
     hooks:
     -   id: clang-format -i
-        args:
-        - "-style=file:developer-tools/.clang-format"
--   repo: https://github.com/jorisroovers/gitlint
-    rev:  v0.17.0
-    hooks:
-    -   id: gitlint
-        args:
-        - "--config developer-tools/.gitlint"
 -   repo: https://git.gitlab.arm.com/iot/open-iot-sdk/tools/developer-tools.git
-    rev: 25a1de6f78bade94a8893512b973fe1ddfed0a58
+    rev: 777223b9a7d574cfa773f845ea4cad2f8d677123
     hooks:
     -   id: cppcheck
     -   id: banned-api
--   repo: https://github.com/psf/black
-    rev: 22.3.0
-    hooks:
-    -   id: black
