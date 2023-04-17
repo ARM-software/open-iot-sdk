@@ -67,6 +67,13 @@ void main_task(void *arg)
 
     void *dspMLConnection = getDspMLConnection();
 
+    static const osThreadAttr_t blink_attr = {.priority = osPriorityHigh, .name = "BLINK_TASK"};
+    osThreadId_t blink_thread = osThreadNew(blink_task, NULL, &blink_attr);
+    if (!blink_thread) {
+        printf("Failed to create blink thread\r\n");
+        return;
+    }
+
     static const osThreadAttr_t dsp_task_attr = {
         .priority = osPriorityAboveNormal6, .stack_size = 8192, .name = "DSP_TASK"};
     osThreadId_t dsp_thread = osThreadNew(dsp_task, dspMLConnection, &dsp_task_attr);
@@ -80,13 +87,6 @@ void main_task(void *arg)
     osThreadId_t ml_thread = osThreadNew(ml_task, dspMLConnection, &ml_task_attr);
     if (!ml_thread) {
         printf("Failed to create ml thread\r\n");
-        return;
-    }
-
-    static const osThreadAttr_t blink_attr = {.priority = osPriorityNormal, .name = "BLINK_TASK"};
-    osThreadId_t blink_thread = osThreadNew(blink_task, NULL, &blink_attr);
-    if (!blink_thread) {
-        printf("Failed to create blink thread\r\n");
         return;
     }
 

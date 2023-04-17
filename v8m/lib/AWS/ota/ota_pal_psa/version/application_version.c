@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022 Arm Limited. All rights reserved.
+ * Copyright (c) 2020-2023 Arm Limited. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -28,28 +28,21 @@
 
 /* C Runtime includes. */
 #include <stdlib.h>
-
 #include "application_version.h"
-
-/* TF-M Firmware Update service. */
-#include "psa/update.h"
 
 AppVersion32_t xAppFirmwareVersion;
 
-int GetImageVersionPSA( uint8_t ucImageType )
+int GetImageVersionPSA( psa_fwu_component_t uxComponent )
 {
-    psa_image_info_t xImageInfo = { 0 };
+    psa_fwu_component_info_t xComponentInfo = { 0 };
     psa_status_t uxStatus;
-    psa_image_id_t ulImageID = 0;
 
-    /* Get the version information of the full image in primary slot. */
-    ulImageID = FWU_CALCULATE_IMAGE_ID( FWU_IMAGE_ID_SLOT_ACTIVE, ucImageType, 0 );
-    uxStatus = psa_fwu_query( ulImageID, &xImageInfo );
+    uxStatus = psa_fwu_query( uxComponent, &xComponentInfo );
     if( uxStatus == PSA_SUCCESS )
     {
-        xAppFirmwareVersion.u.x.major = xImageInfo.version.iv_major;
-        xAppFirmwareVersion.u.x.minor = xImageInfo.version.iv_minor;
-        xAppFirmwareVersion.u.x.build = (uint16_t)xImageInfo.version.iv_revision;
+        xAppFirmwareVersion.u.x.major = xComponentInfo.version.major;
+        xAppFirmwareVersion.u.x.minor = xComponentInfo.version.minor;
+        xAppFirmwareVersion.u.x.build = (uint16_t)xComponentInfo.version.patch;
         return 0;
     }
     else

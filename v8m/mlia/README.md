@@ -39,7 +39,7 @@ Once the environemnt is set up, you can use the frontend script, `ats.sh` for a 
 ```
 
 This will run MLIA operator command on a bundled quantized DS-CNN-L model, which reports advice.
-The output of this command is saved into `build/mlia/mlia_output.txt`.
+The output of this command is saved into `build/mlia/mlia-output/logs/mlia.log`.
 
 ## Using MLIA CLI directly
 

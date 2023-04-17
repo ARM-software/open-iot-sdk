@@ -10,7 +10,7 @@ upload:
 steps:
   - run: |
       sudo apt update -y
-      sudo apt install python3.8-venv -y
+      sudo apt install python3.8-venv python3-virtualenv -y
       python3.8 -m pip install imgtool cbor2
       python3.9 -m pip install cffi intelhex cbor2 cbor pytest click imgtool jinja2 boto3 boto3-type-annotations jmespath
 
@@ -20,6 +20,7 @@ steps:
   # build application ci/env.sh is used to pass environmental variables
   # from GitLab runner to AWS EC2 instance running AVH AMI
   - run: |
+      set -x
       export PATH=$PATH:$HOME/.local/bin
       . ./ci/env.sh
       export ARM_TOOL_VARIANT=ult

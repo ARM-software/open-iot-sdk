@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
+ * Copyright (c) 2022-2023, Arm Limited and Contributors. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -10,5 +10,4 @@
 #define MEM_ALIGNMENT 4U
 #define MEM_SIZE      (20 * 1024)
 
-// prevent warnings from LWIP
-#define LWIP_NO_STDINT_H 1
+#define LWIP_NO_STDINT_H 0

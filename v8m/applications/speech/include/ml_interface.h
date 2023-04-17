@@ -32,6 +32,9 @@ void ml_mqtt_task(void *arg);
 int ml_frame_length();
 int ml_frame_stride();
 
+/* To be implemented by application to send inference result */
+void mqtt_send_inference_result(const char *message);
+
 #ifdef __cplusplus
 }
 #endif

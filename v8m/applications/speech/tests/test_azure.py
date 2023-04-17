@@ -1,4 +1,4 @@
-#  Copyright (c) 2021 Arm Limited. All rights reserved.
+#  Copyright (c) 2021-2023 Arm Limited. All rights reserved.
 #  SPDX-License-Identifier: Apache-2.0
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,16 +17,18 @@ from timeit import default_timer as timer
 
 
 def test_azure(fvp):
-    # Traces expected in the output
+    # Traces expected in the output
     expectations = [
-        'Starting bootloader',
-        'Booting TF-M v1.6.0',
-        'Starting scheduler from ns main',
-        'Ethos-U55 device initialised',
-        'ML interface initialised',
-        'Sending message turn down the temperature in the bedroom',
-        'Ack message',
+        "Starting bootloader",
+        "Booting TF-M v1.7.0",
+        "Starting scheduler from ns main",
+        "Ethos-U55 device initialised",
+        "ML interface initialised",
+        "Sending message turn down the temperature in the bedroom",
+        "Message sent",
     ]
+
+    fails = ["Failed to send blink_event message to ui_msg_queue"]
 
     index = 0
     start = timer()
@@ -37,13 +39,15 @@ def test_azure(fvp):
         line = fvp.stdout.readline()
         if not line:
             break
-        line = line.decode('utf-8')
+        line = line.decode("utf-8")
         line = line.rstrip()
         print(line)
         if expectations[index] in line:
             index += 1
             if index == len(expectations):
                 break
+        for x in fails:
+            assert x not in line
         current_time = timer()
 
     assert index == len(expectations)

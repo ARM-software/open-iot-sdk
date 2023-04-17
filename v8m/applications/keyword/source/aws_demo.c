@@ -1,9 +1,9 @@
-/* Copyright (c) 2017-2022, Arm Limited and Contributors. All rights reserved.
+/* Copyright (c) 2017-2023, Arm Limited and Contributors. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "cmsis_os2.h"
 #include "iotsdk/ip_network_api.h"
+#include "cmsis_os2.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -54,7 +54,7 @@ void network_state_callback(network_state_callback_event_t status)
 
 void print_version()
 {
-    if (GetImageVersionPSA(FWU_IMAGE_TYPE_NONSECURE) == 0) {
+    if (GetImageVersionPSA(FWU_COMPONENT_ID_NONSECURE) == 0) {
         printf("Firmware version: %d.%d.%d\r\n",
                xAppFirmwareVersion.u.x.major,
                xAppFirmwareVersion.u.x.minor,

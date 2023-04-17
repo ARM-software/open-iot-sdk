@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Arm Limited
+ * Copyright (c) 2021-2023 Arm Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,8 @@
 
 enum image_attributes {
     RE_SECURE_IMAGE_OFFSET = (0x380000),
-    RE_SECURE_IMAGE_MAX_SIZE = (0x60000),
-    RE_NON_SECURE_IMAGE_OFFSET = ((0x380000) + (0x60000)),
-    RE_NON_SECURE_IMAGE_MAX_SIZE = (0x320000),
-    RE_SIGN_BIN_SIZE = ((0x320000)),
+    RE_SECURE_IMAGE_MAX_SIZE = (0x50000),
+    RE_NON_SECURE_IMAGE_OFFSET = ((0x380000) + (0x50000)),
+    RE_NON_SECURE_IMAGE_MAX_SIZE = (0x330000),
+    RE_SIGN_BIN_SIZE = ((0x330000)),
 };

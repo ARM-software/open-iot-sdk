@@ -1,10 +1,10 @@
-# Copyright (c) 2021 ARM Limited. All rights reserved.
+# Copyright (c) 2021-2023 ARM Limited. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 cmake_minimum_required(VERSION 3.18)
 
-FetchContent_GetProperties(aws-iot-device-sdk)
-FetchContent_GetProperties(tf-m)
+FetchContent_GetProperties(aws-iot-device-sdk-embedded-c)
+FetchContent_GetProperties(trusted-firmware-m)
 
 add_subdirectory(coreMQTT-Agent)
 set(coremqtt-agent_SOURCE_DIR ${coremqtt-agent_SOURCE_DIR} PARENT_SCOPE)
@@ -14,6 +14,13 @@ add_subdirectory(ota_for_aws)
 add_subdirectory(PKCS11)
 
 add_library(AWS-extra STATIC EXCLUDE_FROM_ALL)
+
+target_compile_definitions(AWS-extra
+    PRIVATE
+        # FreeRTOS OTA PSA PAL configuration
+        OTA_PAL_CODE_SIGNING_ALGO=OTA_PAL_CODE_SIGNING_RSA
+        OTA_PAL_SIGNATURE_FORMAT=OTA_PAL_SIGNATURE_RAW
+)
 
 target_include_directories(AWS-extra
     PUBLIC
@@ -36,17 +43,17 @@ target_include_directories(AWS-extra
         "aws_libraries/freertos_kernel/include"
         "aws_libraries/freertos_plus/standard/tls/include"
         "aws_libraries/freertos_plus/standard/crypto/include"
-        "${TFM_PLATFORM_TARGET_DIR}/arm/mps3/an547"
-        "${TFM_PLATFORM_TARGET_DIR}/arm/mps3/an547/cmsis_drivers"
-        "${TFM_PLATFORM_TARGET_DIR}/arm/mps3/an547/cmsis_drivers/config"
-        "${TFM_PLATFORM_TARGET_DIR}/arm/mps3/an547/device"
-        "${TFM_PLATFORM_TARGET_DIR}/arm/mps3/an547/device/config"
-        "${TFM_PLATFORM_TARGET_DIR}/arm/mps3/an547/device/source/armclang"
-        "${TFM_PLATFORM_TARGET_DIR}/arm/mps3/an547/native_drivers"
-        "${TFM_PLATFORM_TARGET_DIR}/arm/mps3/an547/partition"
-        "${TFM_PLATFORM_TARGET_DIR}/arm/mps3/an547/services/src"
+        "${TFM_PLATFORM_TARGET_DIR}/arm/mps3/an552"
+        "${TFM_PLATFORM_TARGET_DIR}/arm/mps3/an552/cmsis_drivers"
+        "${TFM_PLATFORM_TARGET_DIR}/arm/mps3/an552/cmsis_drivers/config"
+        "${TFM_PLATFORM_TARGET_DIR}/arm/mps3/an552/device"
+        "${TFM_PLATFORM_TARGET_DIR}/arm/mps3/an552/device/config"
+        "${TFM_PLATFORM_TARGET_DIR}/arm/mps3/an552/device/source/armclang"
+        "${TFM_PLATFORM_TARGET_DIR}/arm/mps3/an552/native_drivers"
+        "${TFM_PLATFORM_TARGET_DIR}/arm/mps3/an552/partition"
+        "${TFM_PLATFORM_TARGET_DIR}/arm/mps3/an552/services/src"
         "${TFM_PLATFORM_TARGET_DIR}/arm/mps3/common"
-        "${tf-m_SOURCE_DIR}/interface/include"
+        "${trusted-firmware-m_SOURCE_DIR}/interface/include"
         "${PRJ_DIR}/lib/AWS/ota_for_aws"
 )
 
@@ -85,7 +92,7 @@ target_sources(AWS-extra
         "aws_libraries/3rdparty/mbedtls_utils/mbedtls_error.c"
         "aws_libraries/3rdparty/mbedtls_utils/mbedtls_utils.c"
 
-        # Additional crypto 
+        # Additional crypto
         "${PRJ_DIR}/lib/AWS/aws_libraries/freertos_plus/standard/crypto/src/iot_crypto.c"
         "${PRJ_DIR}/lib/AWS/aws_libraries/freertos_plus/standard/tls/src/iot_tls.c"
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2021-2022, Arm Limited and Contributors. All rights reserved.
+/* Copyright (c) 2021-2023, Arm Limited and Contributors. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -6,12 +6,10 @@
 #include <string.h>
 #include "bsp_serial.h"
 #include "print_log.h"
-#include "cmsis_os2.h" 
+#include "cmsis_os2.h"
 #include "RTOS_config.h"
 /* includes for TFM */
 #include "tfm_ns_interface.h"
-#include "psa/protected_storage.h"
-#include "psa/crypto.h"
 #include "emac_cs300.h"
 
 /* Provide EMAC interface to LwIP. This is required until MDH provides a factory

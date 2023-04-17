@@ -300,7 +300,7 @@ extern void OTA_HookStop(void);
 /**
  * @brief Timeout for receiving CONNACK packet in milli seconds.
  */
-#define CONNACK_RECV_TIMEOUT_MS                     ( 2000U )
+#define CONNACK_RECV_TIMEOUT_MS                     ( 8000U )
 
 /**
  * @brief The maximum time interval in seconds which is allowed to elapse
@@ -311,7 +311,7 @@ extern void OTA_HookStop(void);
  * absence of sending any other Control Packets, the Client MUST send a
  * PINGREQ Packet.
  */
-#define MQTT_KEEP_ALIVE_INTERVAL_SECONDS            ( 60U )
+#define MQTT_KEEP_ALIVE_INTERVAL_SECONDS            ( 120U )
 
 /**
  * @brief Stack size required for MQTT agent task.
@@ -330,7 +330,7 @@ extern void OTA_HookStop(void);
  * to be posted to the MQTT agent should the MQTT agent's command queue be full.
  * Tasks wait in the Blocked state, so don't use any CPU time.
  */
-#define MQTT_AGENT_SEND_BLOCK_TIME_MS               ( 200U )
+#define MQTT_AGENT_SEND_BLOCK_TIME_MS               ( 1000U )
 
 /**
  * @brief This demo uses task notifications to signal tasks from MQTT callback
@@ -1320,10 +1320,9 @@ static uint32_t prvGetTimeMs( void )
 
 static MQTTStatus_t prvMqttAgentInit( void )
 {
-    TransportInterface_t xTransport;
+    static TransportInterface_t xTransport;
     MQTTStatus_t xReturn;
-    MQTTFixedBuffer_t xFixedBuffer = { .pBuffer = pucNetworkBuffer, .size = MQTT_AGENT_NETWORK_BUFFER_SIZE };
-    static uint8_t ucStaticQueueStorageArea[ MQTT_AGENT_COMMAND_QUEUE_LENGTH * sizeof( MQTTAgentCommand_t * ) ];
+    static MQTTFixedBuffer_t xFixedBuffer = { .pBuffer = pucNetworkBuffer, .size = MQTT_AGENT_NETWORK_BUFFER_SIZE };
 
     LogDebug( ( "Creating command queue." ) );
     xCommandQueue.queue = osMessageQueueNew( MQTT_AGENT_COMMAND_QUEUE_LENGTH, 
@@ -1484,6 +1483,8 @@ static BaseType_t prvConnectToMQTTBroker( void )
         {
             LogError( ( "Failed initializing MQTT agent." ) );
             xStatus = pdFAIL;
+        } else {
+            LogDebug( ( "Success initializing MQTT agent." ) );
         }
     }
 

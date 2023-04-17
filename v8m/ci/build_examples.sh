@@ -28,27 +28,35 @@ $ROOT/ats.sh build keyword -p build -t $TARGET -r $RTOS -e $ENDPOINT
 $ROOT/ats.sh build speech -p build -t $TARGET -r $RTOS -e $ENDPOINT
 
 # Copy the result into the build folder
-mkdir -p "$BUILD_FOLDER"/bootloader/ "$BUILD_FOLDER"/secure_partition/ "$BUILD_FOLDER"/examples/blinky/ "$BUILD_FOLDER"/examples/keyword/ "$BUILD_FOLDER"/examples/speech/
-cp build/bootloader/bl2.axf "$BUILD_FOLDER"/bootloader/bl2.axf
-cp build/secure_partition/tfm_s_signed.bin "$BUILD_FOLDER"/secure_partition/tfm_s_signed.bin
-cp build/examples/blinky/blinky_signed.bin "$BUILD_FOLDER"/examples/blinky/blinky_signed.bin
-cp build/examples/keyword/keyword_signed.bin build/examples/keyword/keyword_signed_update.bin "$BUILD_FOLDER"/examples/keyword/
-cp build/examples/speech/speech_signed.bin build/examples/speech/speech_signed_update.bin "$BUILD_FOLDER"/examples/speech/
+mkdir -p "$OUTPUT_FOLDER"/bootloader/ "$OUTPUT_FOLDER"/secure_partition/ "$OUTPUT_FOLDER"/examples/blinky/ "$OUTPUT_FOLDER"/examples/keyword/ "$OUTPUT_FOLDER"/examples/speech/
+cp build/bootloader/bl2.axf "$OUTPUT_FOLDER"/bootloader/bl2.axf
+cp build/secure_partition/tfm_s_signed.bin "$OUTPUT_FOLDER"/secure_partition/tfm_s_signed.bin
+cp build/examples/blinky/blinky_signed.bin "$OUTPUT_FOLDER"/examples/blinky/blinky_signed.bin
+cp build/examples/keyword/keyword_signed.bin build/examples/keyword/keyword_signed_update.bin "$OUTPUT_FOLDER"/examples/keyword/
+cp build/examples/speech/speech_signed.bin build/examples/speech/speech_signed_update.bin "$OUTPUT_FOLDER"/examples/speech/
 
 # Build keyword with credentials
-$ROOT/ats.sh build keyword -p build -a "$BUILD_FOLDER"_credentials_keyword -t $TARGET -r $RTOS -e $ENDPOINT
+$ROOT/ats.sh build keyword -p build -a "$OUTPUT_FOLDER"_credentials_keyword -t $TARGET -r $RTOS -e $ENDPOINT
 
 # Copy it into the output
-mkdir -p "$BUILD_FOLDER"_cloud_keyword/bootloader/ "$BUILD_FOLDER"_cloud_keyword/secure_partition/ "$BUILD_FOLDER"_cloud_keyword/examples/blinky/ "$BUILD_FOLDER"_cloud_keyword/examples/keyword/ "$BUILD_FOLDER"_cloud_keyword/examples/speech/
-cp build/bootloader/bl2.axf "$BUILD_FOLDER"_cloud_keyword/bootloader/bl2.axf
-cp build/secure_partition/tfm_s_signed.bin "$BUILD_FOLDER"_cloud_keyword/secure_partition/tfm_s_signed.bin
-cp build/examples/keyword/keyword_signed.bin build/examples/keyword/keyword_signed_update.bin build/examples/keyword/update-signature.txt "$BUILD_FOLDER"_cloud_keyword/examples/keyword/
+mkdir -p "$OUTPUT_FOLDER"_cloud_keyword/bootloader/ "$OUTPUT_FOLDER"_cloud_keyword/secure_partition/ "$OUTPUT_FOLDER"_cloud_keyword/examples/blinky/ "$OUTPUT_FOLDER"_cloud_keyword/examples/keyword/ "$OUTPUT_FOLDER"_cloud_keyword/examples/speech/
+cp build/bootloader/bl2.axf "$OUTPUT_FOLDER"_cloud_keyword/bootloader/bl2.axf
+cp build/secure_partition/tfm_s_signed.bin "$OUTPUT_FOLDER"_cloud_keyword/secure_partition/tfm_s_signed.bin
+cp build/examples/keyword/keyword_signed.bin build/examples/keyword/keyword_signed_update.bin "$OUTPUT_FOLDER"_cloud_keyword/examples/keyword/
 
 # Build speech with credentials
-$ROOT/ats.sh build speech -p build -a "$BUILD_FOLDER"_credentials_speech -t $TARGET -r $RTOS -e $ENDPOINT
+$ROOT/ats.sh build speech -p build -a "$OUTPUT_FOLDER"_credentials_speech -t $TARGET -r $RTOS -e $ENDPOINT
 
 # Copy it into the output
-mkdir -p "$BUILD_FOLDER"_cloud_speech/bootloader/ "$BUILD_FOLDER"_cloud_speech/secure_partition/ "$BUILD_FOLDER"_cloud_speech/examples/blinky/ "$BUILD_FOLDER"_cloud_speech/examples/speech/ "$BUILD_FOLDER"_cloud_speech/examples/speech/
-cp build/bootloader/bl2.axf "$BUILD_FOLDER"_cloud_speech/bootloader/bl2.axf
-cp build/secure_partition/tfm_s_signed.bin "$BUILD_FOLDER"_cloud_speech/secure_partition/tfm_s_signed.bin
-cp build/examples/speech/speech_signed.bin build/examples/speech/speech_signed_update.bin build/examples/speech/update-signature.txt "$BUILD_FOLDER"_cloud_speech/examples/speech/
+mkdir -p "$OUTPUT_FOLDER"_cloud_speech/bootloader/ "$OUTPUT_FOLDER"_cloud_speech/secure_partition/ "$OUTPUT_FOLDER"_cloud_speech/examples/blinky/ "$OUTPUT_FOLDER"_cloud_speech/examples/speech/ "$OUTPUT_FOLDER"_cloud_speech/examples/speech/
+cp build/bootloader/bl2.axf "$OUTPUT_FOLDER"_cloud_speech/bootloader/bl2.axf
+cp build/secure_partition/tfm_s_signed.bin "$OUTPUT_FOLDER"_cloud_speech/secure_partition/tfm_s_signed.bin
+cp build/examples/speech/speech_signed.bin build/examples/speech/speech_signed_update.bin "$OUTPUT_FOLDER"_cloud_speech/examples/speech/
+
+# Copy OTA metadata files into the outputs
+case "$ENDPOINT" in
+    AWS)
+        cp build/examples/keyword/update-signature.txt "$OUTPUT_FOLDER"_cloud_keyword/examples/keyword/
+        cp build/examples/speech/update-signature.txt "$OUTPUT_FOLDER"_cloud_speech/examples/speech/
+    ;;
+esac
