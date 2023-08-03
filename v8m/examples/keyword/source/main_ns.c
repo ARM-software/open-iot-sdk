@@ -4,7 +4,6 @@
 
 #include "RTOS_config.h"
 #include "blink_task.h"
-#include "bsp_serial.h"
 #include "cmsis_os2.h"
 #include "mbedtls/platform.h"
 #include "ml_interface.h"
@@ -54,10 +53,8 @@ void OTA_HookStop(void)
     ml_task_inference_start();
 }
 
-void main_task(void *arg)
+int main()
 {
-    (void)arg;
-
     tfm_ns_interface_init();
 
     vUARTLockInit();
@@ -66,7 +63,7 @@ void main_task(void *arg)
     osThreadId_t blink_thread = osThreadNew(blink_task, NULL, &blink_attr);
     if (!blink_thread) {
         printf("Failed to create blink thread\r\n");
-        return;
+        return -1;
     }
 
     static const osThreadAttr_t ml_task_attr = {
@@ -74,14 +71,14 @@ void main_task(void *arg)
     osThreadId_t ml_thread = osThreadNew(ml_task, NULL, &ml_task_attr);
     if (!ml_thread) {
         printf("Failed to create ml thread\r\n");
-        return;
+        return -1;
     }
 
     static const osThreadAttr_t ml_mqtt_attr = {.priority = osPriorityNormal, .name = "ML_MQTT"};
     osThreadId_t ml_mqtt_thread = osThreadNew(ml_mqtt_task, NULL, &ml_mqtt_attr);
     if (!ml_mqtt_thread) {
         printf("Failed to create ml mqtt thread\r\n");
-        return;
+        return -1;
     }
 
     mbedtls_platform_set_calloc_free(prvCalloc, free);
@@ -93,40 +90,5 @@ void main_task(void *arg)
     while (1) {
         osDelay(osWaitForever);
     };
-    return;
-}
-
-int main()
-{
-    bsp_serial_init();
-
-    osStatus_t os_status = osKernelInitialize();
-    if (os_status != osOK) {
-        printf("osKernelInitialize failed: %d\r\n", os_status);
-        return EXIT_FAILURE;
-    }
-
-    static const osThreadAttr_t main_task_attr = {.priority = osPriorityNormal, .name = "main_task"};
-    osThreadId_t connectivity_thread = osThreadNew(main_task, NULL, &main_task_attr);
-    if (!connectivity_thread) {
-        printf("Failed to create connectivity thread\r\n");
-        return EXIT_FAILURE;
-    }
-
-    osKernelState_t os_state = osKernelGetState();
-    if (os_state != osKernelReady) {
-        printf("Kernel not ready %d\r\n", os_state);
-        return EXIT_FAILURE;
-    }
-
-    printf("Starting scheduler from ns main\r\n");
-
-    /* Start the scheduler itself. */
-    os_status = osKernelStart();
-    if (os_status != osOK) {
-        printf("Failed to start kernel: %d\r\n", os_status);
-        return EXIT_FAILURE;
-    }
-
     return 0;
 }

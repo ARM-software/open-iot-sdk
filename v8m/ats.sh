@@ -28,6 +28,7 @@ Commands:
     build,b         <example>   Build <example>
     run,r           <example>   Run example
     build-n-run,br  <example>   Build and run example
+    test,t          <test>      Run pytest test
     pack,p                      Create CMSIS pack
 EOF
 }
@@ -60,6 +61,9 @@ case "$1" in
     ;;
     pack|p)
         "$SCRIPTS/make_cmsis_pack.sh"
+    ;;
+    test|t)
+        "$SCRIPTS/test.sh" "${@:2}"
     ;;
     *)
         show_usage >&2

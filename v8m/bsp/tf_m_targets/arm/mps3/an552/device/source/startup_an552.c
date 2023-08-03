@@ -163,7 +163,6 @@ DEFAULT_IRQ_HANDLER(UARTRX5_Handler)
 DEFAULT_IRQ_HANDLER(UARTTX5_Handler)
 DEFAULT_IRQ_HANDLER(UART5_Handler)
 DEFAULT_IRQ_HANDLER(ARM_VSI0_Handler)
-DEFAULT_IRQ_HANDLER(arm_npu_irq_handler)
 
 /*----------------------------------------------------------------------------
   Exception / Interrupt Vector table
@@ -251,7 +250,7 @@ extern const VECTOR_TABLE_Type __VECTOR_TABLE[];
   SPI_ADC_Handler,                   /*  53: SPI ADC Handler */
   SPI_SHIELD0_Handler,               /*  54: SPI (Shield 0) Handler */
   SPI_SHIELD1_Handler,               /*  55: SPI (Shield 0) Handler */
-  arm_npu_irq_handler,                /*  56: Ethos-U55 Handler */
+  ETHOS_U55_Handler,                /*  56: Ethos-U55 Handler */
   0,                                 /*  57: Reserved */
   0,                                 /*  58: Reserved */
   0,                                 /*  59: Reserved */

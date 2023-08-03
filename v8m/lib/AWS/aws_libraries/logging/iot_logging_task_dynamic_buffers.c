@@ -260,7 +260,7 @@ static void prvLoggingPrintfCommon( uint8_t usLoggingLevel,
 
                     xLength += snprintf_safe( pcPrintString, configLOGGING_MAX_MESSAGE_LENGTH, "%lu %lu [%s] ",
                                               ( unsigned long ) xMessageNumber++,
-                                              ( unsigned long ) OS_Tick_GetCount(),
+                                              ( unsigned long ) osKernelGetTickCount(),
                                               pcTaskName );
                 }
         }

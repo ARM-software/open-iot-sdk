@@ -20,6 +20,7 @@ ROOT="$(realpath $HERE/..)"
 EXAMPLE=""
 BUILD_PATH="build"
 TARGET="Corstone-300"
+AUDIO="VSI"
 FVP_BIN=""
 
 function show_usage {
@@ -41,8 +42,8 @@ Examples:
 EOF
 }
 
-SHORT=p:,t:,h
-LONG=path:,target:,help
+SHORT=p:,t:,s:,h
+LONG=path:,target:,audio:,help
 OPTS=$(getopt -n run --options $SHORT --longoptions $LONG -- "$@")
 
 eval set -- "$OPTS"
@@ -60,6 +61,10 @@ do
       ;;
     -t | --target )
       TARGET=$2
+      shift 2
+      ;;
+    -s | --audio )
+      AUDIO=$2
       shift 2
       ;;
     --)
@@ -85,12 +90,30 @@ case "$1" in
         ;;
 esac
 
+OPTIONS="-C mps3_board.visualisation.disable-visualisation=1 -C mps3_board.smsc_91c111.enabled=1 -C mps3_board.hostbridge.userNetworking=1 -C cpu0.semihosting-enable=1 -C mps3_board.telnetterminal0.start_telnet=0 -C mps3_board.uart0.out_file="-"  -C mps3_board.uart0.unbuffered_output=1 --stat  -C mps3_board.DISABLE_GATING=1 -C cpu_core.core_clk.mul=200000000"
+
+case "$AUDIO" in
+    VSI )
+      AVH_AUDIO_FILE=$ROOT/examples/$EXAMPLE/tests/test.wav
+      AVH_AUDIO_OPTIONS="-V $ROOT/lib/AVH/audio"
+      ;;
+    ROM )
+      ;;
+    *)
+      echo "Invalid audio source <VSI|ROM>"
+      show_usage
+      exit 2
+      ;;
+esac
+
 case "$TARGET" in
     Corstone-300 )
       FVP_BIN="VHT_Corstone_SSE-300_Ethos-U55"
+      AVH_AUDIO_FILE=$AVH_AUDIO_FILE $FVP_BIN $OPTIONS $AVH_AUDIO_OPTIONS -a cpu0*="$BUILD_PATH/bootloader/bl2.axf" --data "$BUILD_PATH/secure_partition/tfm_s_signed.bin"@0x28000000 --data "$BUILD_PATH/examples/$1/$1_signed.bin"@0x28040000
       ;;
     Corstone-310 )
       FVP_BIN="VHT_Corstone_SSE-310"
+      AVH_AUDIO_FILE=$AVH_AUDIO_FILE $FVP_BIN $OPTIONS $AVH_AUDIO_OPTIONS -a cpu0*="$BUILD_PATH/bootloader/bl2.axf" --data "$BUILD_PATH/secure_partition/tfm_s_signed.bin"@0x28000000 --data "$BUILD_PATH/examples/$1/$1_signed.bin"@0x28040000
       ;;
     *)
       echo "Invalid target <Corstone-300|Corstone-310>"
@@ -106,8 +129,3 @@ if [[ "$EXAMPLE" = "mlia" ]]; then
 fi
 
 set -x
-
-VSI_PY_PATH=$ROOT/lib/AVH/audio
-OPTIONS="-V $VSI_PY_PATH -C mps3_board.visualisation.disable-visualisation=1 -C mps3_board.smsc_91c111.enabled=1 -C mps3_board.hostbridge.userNetworking=1 -C cpu0.semihosting-enable=1 -C mps3_board.telnetterminal0.start_telnet=0 -C mps3_board.uart0.out_file="-"  -C mps3_board.uart0.unbuffered_output=1 --stat  -C mps3_board.DISABLE_GATING=1 -C cpu_core.core_clk.mul=200000000"
-
-AVH_AUDIO_FILE=$ROOT/examples/$EXAMPLE/test.wav $FVP_BIN $OPTIONS -a cpu0*="$BUILD_PATH/bootloader/bl2.axf" --data "$BUILD_PATH/secure_partition/tfm_s_signed.bin"@0x38000000 --data "$BUILD_PATH/examples/$1/$1_signed.bin"@0x28050000

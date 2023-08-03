@@ -1,3 +1,47 @@
+# v2023.07 (2023-07-13)
+
+## Changes
+
+* examples: Add Azure Device Update to keyword and speech examples.
+* build: Set CMAKE_SYSTEM_PROCESSOR based on TS_TARGET.
+* cmake: Replace custom PRJ_DIR with built-in CMAKE_SOURCE_DIR.
+* examples: Remove MDH direct dependency and usage of CMSIS Driver APIs
+* cs310: Fix timing for AWS device certification
+* docs: Update the category and version for component in LICENSE.md
+* script: add scripts to ease the creation of thing, policies and most things around them.
+* open-iotsdk: Use updated mcu-driver-hal.
+* build: Add support for GCC.
+* ml: Add support to run examples without Ethos NPU.
+* docs: Removing CODEOWNERS file as it will be resolved by Gitlab groups
+* toolchains: Use updated toolchain files.
+* iotsdk: Update to latest version
+  * Include and Update to TF-M V1.8.0
+  * Remove bespoke BSP for Corstone-310 and transition to TM-F default BSP
+  * Support for latest CMSIS
+* tf-m: Set all config options in TFM_CMAKE_ARGS as required by the latest Open IoT SDK.
+* test: Update tests to use pyedmgr.
+* ci: Use pyedmgr in CI
+* coremqtt-agent: Replace with the Open IoT SDK's component
+* app: Improve cloud connection stability
+
+  - Pull patches to cloud clients from the SDK
+  - Improve RTOS configuration
+  - Fix logging timestamp
+  - Rework ML processing start and stop
+* cmake: Use tfm_s_signed.bin from TF-M build instead of signing the secure image by ourselves.
+* examples: Remove duplicated audio files.
+* keyword: Fix incorrect mapping of results.
+* keyword: Fix and simplify ML state processing in blink task.
+* keyword: Add support for preloading the audio clip in ROM.
+* cmake: Do not copy compile_commands.json into the root directory.
+* speech: Add support for preloading audio clip in ROM.
+* cmake: Update toolchain files.
+* aws: Reduce the log verbosity from debug to info to improve readability and CI performance.
+* ci: Update the developer-tools to have Black Duck scan available.
+* ci: Enable the Black Duck scan as part of quality-check.
+* ami: Update environment setup instruction
+
+
 # v2023.04 (2023-04-13)
 
 ## Changes

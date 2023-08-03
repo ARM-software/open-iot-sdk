@@ -13,16 +13,19 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import logging
 from timeit import default_timer as timer
+import pytest
+
+from pyedmgr import TestCaseContext, TestDevice
 
 
-def test_azure(fvp):
+@pytest.mark.asyncio
+async def test_azure(fvp: TestDevice):
     # Traces expected in the output
     expectations = [
         "Starting bootloader",
-        "Booting TF-M v1.7.0",
-        "Starting scheduler from ns main",
-        "Ethos-U55 device initialised",
+        "Booting TF-M v1.8.0",
         "ML interface initialised",
         "Sending message turn down the temperature in the bedroom",
         "Message sent",
@@ -36,12 +39,10 @@ def test_azure(fvp):
 
     # Timeout for the test is 10 minutes
     while (current_time - start) < (10 * 60):
-        line = fvp.stdout.readline()
-        if not line:
-            break
-        line = line.decode("utf-8")
-        line = line.rstrip()
-        print(line)
+        line = await fvp.channel.readline_async()
+        line = line.decode("utf-8").rstrip()
+        if line:
+            logging.info(line)
         if expectations[index] in line:
             index += 1
             if index == len(expectations):

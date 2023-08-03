@@ -12,12 +12,10 @@ target_link_libraries(lwipcore
         lwip-cmsis-port
 )
 
-# Link the emac factory to LwIP port
-target_link_libraries(lwip-cmsis-port PUBLIC iotsdk-emac-factory)
 
 target_include_directories(lwipopts
     INTERFACE
-        ${PRJ_DIR}/bsp/lwip-config
+        ${CMAKE_SOURCE_DIR}/bsp/lwip-config
 )
 
 # provide method to use for tracing by the lwip port (optional)
@@ -42,18 +40,53 @@ add_executable(speech
     source/dsp/dsp_task.cpp
 )
 
+if(${AUDIO} STREQUAL "ROM")
+    # convert audio clip to C file when not getting audio input from VSI
+    FetchContent_GetProperties(ml-embedded-evaluation-kit)
+    add_custom_target(convert-speech-audio
+        DEPENDS build-ml-embedded-evaluation-kit
+        BYPRODUCTS
+            ${CMAKE_CURRENT_BINARY_DIR}/InputFiles.cc
+            ${CMAKE_CURRENT_BINARY_DIR}/test.cc
+        # use ml-embedded-evaluation-kit's Python Virtual Environment which
+        # contains dependencies for gen_audio_cpp.py
+        COMMAND bash -c " \
+            source ${ml-embedded-evaluation-kit_SOURCE_DIR}/resources_downloaded/env/bin/activate && \
+            python3 ${ml-embedded-evaluation-kit_SOURCE_DIR}/scripts/py/gen_audio_cpp.py \
+            --audio_path ${CMAKE_CURRENT_LIST_DIR}/tests \
+            --source_folder_path ${CMAKE_CURRENT_BINARY_DIR} \
+            --header_folder_path ${CMAKE_CURRENT_BINARY_DIR} "
+        VERBATIM
+        USES_TERMINAL
+    )
+
+    target_sources(speech
+        PRIVATE
+            ${CMAKE_CURRENT_BINARY_DIR}/InputFiles.cc
+            ${CMAKE_CURRENT_BINARY_DIR}/test.cc
+    )
+endif()
+
+
+if (${INFERENCE_ENGINE} STREQUAL "ETHOS")
+    target_compile_definitions(speech PRIVATE USE_ETHOS)
+    target_sources(speech PRIVATE source/ethosu_platform_adaptation.c)
+endif()
+
 target_compile_options(speech
     PRIVATE
         $<$<COMPILE_LANGUAGE:CXX>:-std=gnu++14>
         $<$<COMPILE_LANGUAGE:C>:-std=gnu11>
 )
 
-# ENABLE_DSP
-# To enable libspeex noise reduction in dsp compute graph
-# When not defined the dsp compute graph is doing nothing
 target_compile_definitions(speech
     PRIVATE
+        # to enable libspeex noise reduction in dsp compute graph
+        # When not defined the dsp compute graph is doing nothing
         ENABLE_DSP
+
+        # when getting audio input from VSI
+        $<$<STREQUAL:${AUDIO},VSI>:AUDIO_VSI>
 )
 
 target_include_directories(speech
@@ -64,6 +97,9 @@ target_include_directories(speech
         # DSP compute graph
         include/dsp
         source/dsp
+
+        # audio clip when not getting audio input from VSI
+        $<$<STREQUAL:${AUDIO},ROM>:${CMAKE_CURRENT_BINARY_DIR}>
 )
 
 # final binary
@@ -71,10 +107,12 @@ target_link_libraries(speech
     startup
     tfm-ns-interface-cmsis-rtos
     cmsis-rtos-implementation
-    mcu-driver-hal
     ts-bsp
+    ts-retarget
+    iotsdk-serial-retarget
     ml-kit-asr
     speexdsp
+    mbed-critical
 
     project_options
     project_warnings
@@ -85,7 +123,6 @@ if(${CLOUD_CLIENT} STREQUAL "AWS")
     target_sources(speech
         PRIVATE
             source/aws_demo.c
-            source/ethosu_platform_adaptation.c
     )
 
     target_link_libraries(speech
@@ -108,9 +145,30 @@ elseif(${CLOUD_CLIENT} STREQUAL "AZURE_NETXDUO")
     target_sources(speech
         PRIVATE
             source/azure_netxduo_demo.c
-            ${PRJ_DIR}/bsp/netxduo-config/nx_azure_iot_cert.c
-            ${PRJ_DIR}/bsp/netxduo-config/nx_azure_iot_ciphersuites.c
-            ${PRJ_DIR}/bsp/netxduo-config/sample_azure_iot_embedded_sdk_connect.c
+            ${CMAKE_SOURCE_DIR}/bsp/netxduo-config/nx_azure_iot_cert.c
+            ${CMAKE_SOURCE_DIR}/bsp/netxduo-config/nx_azure_iot_ciphersuites.c
+            ${CMAKE_SOURCE_DIR}/bsp/netxduo-config/sample_azure_iot_embedded_sdk_connect.c
+    )
+
+    # For simplicity, extract the device ID from the credentials header and use
+    # it as the unique ID for the update too.
+    file(STRINGS ${APP_CONFIG_CREDENTIALS_PATH}/azure_iot_credentials.h unique_id
+         REGEX "define *DEVICE_ID" LIMIT_COUNT 1)
+    string(REGEX MATCH "\".*\"" unique_id "${unique_id}")
+    # Remove quotation marks
+    string(REGEX MATCH "[a-zA-Z0-9_\-]+" unique_id "${unique_id}")
+    if("${unique_id}" STREQUAL "")
+        set(model ${TS_TARGET})
+    else()
+        # When Azure credentials are provided, make the Device Update model unique
+        # so that multiple updates can be performed in the continuous integration (CI)
+        # system using the same Azure IoT Hub instance without conflicts.
+        set(model ${TS_TARGET}-${unique_id})
+    endif()
+    target_compile_definitions(speech
+        PRIVATE
+            SAMPLE_MANUFACTURER="Arm-Ltd"
+            SAMPLE_MODEL="${model}"
     )
 
     target_include_directories(speech
@@ -120,16 +178,15 @@ elseif(${CLOUD_CLIENT} STREQUAL "AZURE_NETXDUO")
 
     target_include_directories(speech
         PRIVATE
-            ${PRJ_DIR}/bsp/netxduo-config
-            ${PRJ_DIR}/bsp/aws_libraries/3rdparty/mbedtls_config
+            ${CMAKE_SOURCE_DIR}/bsp/netxduo-config
+            ${CMAKE_SOURCE_DIR}/bsp/aws_libraries/3rdparty/mbedtls_config
     )
 
     # final binary
     target_link_libraries(speech
-        nx-ip-link-mdh
-        mcu-driver-hal
+        nx-ip-link-cmsis-eth
+        netxduo-adu-driver-psa
         iotsdk-serial-retarget
-        iotsdk-emac-factory
         mbedtls
         cmsis-rtos-api
         netxduo
@@ -140,6 +197,12 @@ endif()
 # Convert axf files into bin
 # Sign binaries
 FetchContent_GetProperties(trusted-firmware-m)
+
+make_elf_to_bin_cmd(speech_elf_to_bin_cmd
+    ${CMAKE_CURRENT_BINARY_DIR}/speech${CMAKE_EXECUTABLE_SUFFIX}
+    ${CMAKE_CURRENT_BINARY_DIR}/speech_unsigned.bin
+)
+
 add_custom_command(
     TARGET
         speech
@@ -153,14 +216,14 @@ add_custom_command(
         ${CMAKE_CURRENT_BINARY_DIR}/speech_signed_update.bin
 
     COMMAND
-        ${ARM_ELF2BIN} --bin --output ${CMAKE_CURRENT_BINARY_DIR}/speech_unsigned.bin ${CMAKE_CURRENT_BINARY_DIR}/speech${CMAKE_EXECUTABLE_SUFFIX} --bincombined
+        ${speech_elf_to_bin_cmd}
 
     COMMAND
         # The primary image is padded to fill the whole slot (--pad), so that the
         # trailer area at the end of the slot is in a clean state during initial boot.
         python3 ${trusted-firmware-m_BINARY_DIR}/install/image_signing/scripts/wrapper/wrapper.py
             -v 0.0.1
-            --layout ${PRJ_DIR}/bsp/signing_layout_ns.c
+            --layout ${trusted-firmware-m_BINARY_DIR}/install/image_signing/layout_files/signing_layout_ns.o
             -k ${trusted-firmware-m_BINARY_DIR}/install/image_signing/keys/root-RSA-2048_1.pem
             --public-key-format full
             --align 1
@@ -178,7 +241,7 @@ add_custom_command(
         # 2) the trailer that keeps track of boot and update statuses should not be overwritten
         python3 ${trusted-firmware-m_BINARY_DIR}/install/image_signing/scripts/wrapper/wrapper.py
             -v 0.0.2
-            --layout ${PRJ_DIR}/bsp/signing_layout_ns.c
+            --layout ${trusted-firmware-m_BINARY_DIR}/install/image_signing/layout_files/signing_layout_ns.o
             -k ${trusted-firmware-m_BINARY_DIR}/install/image_signing/keys/root-RSA-2048_1.pem
             --public-key-format full
             --align 1
@@ -217,4 +280,29 @@ if(${CLOUD_CLIENT} STREQUAL "AWS")
         COMMAND
             ${CMAKE_COMMAND} -E cat ${CMAKE_CURRENT_BINARY_DIR}/update-signature.txt
     )
+elseif(${CLOUD_CLIENT} STREQUAL "AZURE_NETXDUO")
+    if("${unique_id}" STREQUAL "")
+        message(INFO "No Device ID found in azure_iot_credentials.h, continuing without cloud connection.")
+    else()
+        FetchContent_GetProperties(create-adu-import-manifest)
+        add_custom_command(
+            TARGET
+                speech
+            POST_BUILD
+            DEPENDS
+                ${CMAKE_CURRENT_BINARY_DIR}/speech_signed_update.bin
+            BYPRODUCTS
+                ${CMAKE_CURRENT_BINARY_DIR}/speech-0.0.2.importmanifest.json
+            COMMAND
+                bash ${create-adu-import-manifest_SOURCE_DIR}/create-adu-import-manifest.sh
+                -p Arm-Ltd -n ${unique_id} -v 0.0.2 -c manufacturer:Arm-Ltd
+                -c model:${model} -h microsoft/swupdate:1
+                -r installedCriteria:1.0
+                ${CMAKE_CURRENT_BINARY_DIR}/speech_signed_update.bin
+                > ${CMAKE_CURRENT_BINARY_DIR}/speech-0.0.2.importmanifest.json
+            COMMAND
+                ${CMAKE_COMMAND} -E echo "Use this import manifest in OTA job: ${CMAKE_CURRENT_BINARY_DIR}/speech-0.0.2.importmanifest.json"
+            VERBATIM
+        )
+    endif()
 endif()

@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
- * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
+ * Copyright (c) 2022-2023, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -36,8 +36,8 @@
 #include "iot_network.h"
 
 /* CoreMQTT-Agent APIS for running MQTT in a multithreaded environment. */
-#include "freertos_agent_message.h"
-#include "freertos_command_pool.h"
+#include "message_handler.h"
+#include "agent_message_processor.h"
 
 /* CoreMQTT-Agent include. */
 #include "core_mqtt_agent.h"
@@ -300,7 +300,7 @@ extern void OTA_HookStop(void);
 /**
  * @brief Timeout for receiving CONNACK packet in milli seconds.
  */
-#define CONNACK_RECV_TIMEOUT_MS                     ( 8000U )
+#define CONNACK_RECV_TIMEOUT_MS                     ( 20000U )
 
 /**
  * @brief The maximum time interval in seconds which is allowed to elapse
@@ -311,7 +311,7 @@ extern void OTA_HookStop(void);
  * absence of sending any other Control Packets, the Client MUST send a
  * PINGREQ Packet.
  */
-#define MQTT_KEEP_ALIVE_INTERVAL_SECONDS            ( 120U )
+#define MQTT_KEEP_ALIVE_INTERVAL_SECONDS            ( 10000U )
 
 /**
  * @brief Stack size required for MQTT agent task.
@@ -330,7 +330,7 @@ extern void OTA_HookStop(void);
  * to be posted to the MQTT agent should the MQTT agent's command queue be full.
  * Tasks wait in the Blocked state, so don't use any CPU time.
  */
-#define MQTT_AGENT_SEND_BLOCK_TIME_MS               ( 1000U )
+#define MQTT_AGENT_SEND_BLOCK_TIME_MS               ( 3000U )
 
 /**
  * @brief This demo uses task notifications to signal tasks from MQTT callback

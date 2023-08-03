@@ -49,6 +49,7 @@
 /* ARM UART CMSDK */
 #define DEFAULT_UART_BAUDRATE  115200
 #define UART0_CMSDK_NS
+#define DEFAULT_UART_CONTROL 0
 
 /** System Counter Armv8-M */
 #define SYSCOUNTER_CNTRL_ARMV8_M_S

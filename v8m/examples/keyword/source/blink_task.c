@@ -1,12 +1,11 @@
-/* Copyright (c) 2021-2022, Arm Limited and Contributors. All rights reserved.
+/* Copyright (c) 2021-2023, Arm Limited and Contributors. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
 #include "blink_task.h"
-
 #include "cmsis_os2.h"
 #include "ml_interface.h"
-
+#include "mps3_leds.h"
 #include <stdbool.h>
 #include <stdio.h>
 
@@ -32,92 +31,103 @@ enum {
     LED_ALL = 0xFF
 };
 
-static uint32_t *fpgaio_leds = (uint32_t *)0x49302000;
-
-// Events
-typedef enum { UI_EVENT_ML_STATE_CHANGE } ui_state_event_t;
-
-typedef struct {
-    ui_state_event_t event;
-} ui_msg_t;
-
-static ui_msg_t ml_state_change_event = {UI_EVENT_ML_STATE_CHANGE};
-
 // Message queue
 static osMessageQueueId_t ui_msg_queue = NULL;
-
-void led_on(uint8_t bits)
-{
-    *fpgaio_leds |= bits;
-}
-
-void led_off(uint8_t bits)
-{
-    *fpgaio_leds &= ~bits;
-}
-
-void led_toggle(uint8_t bits)
-{
-    *fpgaio_leds ^= bits;
-}
 
 static void ml_change_handler(void *self, ml_processing_state_t new_state)
 {
     (void)self;
-    (void)new_state;
 
-    if (osMessageQueuePut(ui_msg_queue, (void *)&ml_state_change_event, 0, 0) != osOK) {
+    if (osMessageQueuePut(ui_msg_queue, &new_state, 0, 0) != osOK) {
         printf("Failed to send ml_state_change_event message to ui_msg_queue\r\n");
     }
 }
 
-void process_ml_state_change(ml_processing_state_t new_state)
+bool process_ml_state_change(ml_processing_state_t new_state)
 {
+    if (!serial_lock()) {
+        return false;
+    }
+
     switch (new_state) {
         case ML_HEARD_YES:
             printf("ML_HEARD_YES\n");
-            led_on(LED_YES);
+            if (mps3_leds_turn_on(LED_YES) != true) {
+                printf("Failed to turn LED_YES on\r\n");
+                return false;
+            }
             break;
         case ML_HEARD_NO:
             printf("ML_HEARD_NO\n");
-            led_off(LED_YES);
+            if (mps3_leds_turn_off(LED_YES) != true) {
+                printf("Failed to turn LED_YES off\r\n");
+                return false;
+            }
             break;
         case ML_HEARD_GO:
             printf("ML_HEARD_GO\n");
-            led_on(LED_GO);
+            if (mps3_leds_turn_on(LED_GO) != true) {
+                printf("Failed to turn LED_GO on\r\n");
+                return false;
+            }
             break;
         case ML_HEARD_STOP:
-            printf("ML_HEARD_GO\n");
-            led_off(LED_GO);
+            printf("ML_HEARD_STOP\n");
+            if (mps3_leds_turn_off(LED_GO) != true) {
+                printf("Failed to turn LED_GO off\r\n");
+                return false;
+            }
             break;
         case ML_HEARD_UP:
-            printf("ML_HEARD_GO\n");
-            led_on(LED_UP);
+            printf("ML_HEARD_UP\n");
+            if (mps3_leds_turn_on(LED_UP) != true) {
+                printf("Failed to turn LED_UP on\r\n");
+                return false;
+            }
             break;
         case ML_HEARD_DOWN:
-            printf("ML_HEARD_GO\n");
-            led_off(LED_UP);
+            printf("ML_HEARD_DOWN\n");
+            if (mps3_leds_turn_off(LED_UP) != true) {
+                printf("Failed to turn LED_UP off\r\n");
+                return false;
+            }
             break;
         case ML_HEARD_LEFT:
             printf("ML_HEARD_LEFT\n");
-            led_on(LED_LEFT);
+            if (mps3_leds_turn_on(LED_LEFT) != true) {
+                printf("Failed to turn LED_LEFT on\r\n");
+                return false;
+            }
             break;
         case ML_HEARD_RIGHT:
             printf("ML_HEARD_RIGHT\n");
-            led_off(LED_LEFT);
+            if (mps3_leds_turn_off(LED_LEFT) != true) {
+                printf("Failed to turn LED_LEFT off\r\n");
+                return false;
+            }
             break;
         case ML_HEARD_ON:
             printf("ML_HEARD_ON\n");
-            led_on(LED_ON);
+            if (mps3_leds_turn_on(LED_ON) != true) {
+                printf("Failed to turn LED_ON on\r\n");
+                return false;
+            }
             break;
         case ML_HEARD_OFF:
             printf("ML_HEARD_OFF\n");
-            led_off(LED_ON);
+            if (mps3_leds_turn_off(LED_ON) != true) {
+                printf("Failed to turn LED_ON off\r\n");
+                return false;
+            }
             break;
         default:
             printf("ML UNKNOWN\n");
             break;
     }
+
+    serial_unlock();
+
+    return true;
 }
 
 /*
@@ -136,7 +146,7 @@ void blink_task(void *arg)
     printf("Blink task started\r\n");
 
     // Create the ui event queue
-    ui_msg_queue = osMessageQueueNew(10, sizeof(ui_msg_t), NULL);
+    ui_msg_queue = osMessageQueueNew(10, sizeof(ml_processing_state_t), NULL);
     if (!ui_msg_queue) {
         printf("Failed to create a ui msg queue\r\n");
         return;
@@ -145,7 +155,10 @@ void blink_task(void *arg)
     // Connect to the ML processing
     on_ml_processing_change(ml_change_handler, NULL);
 
-    led_off(LED_ALL);
+    if (mps3_leds_turn_off(LED_ALL) != true) {
+        printf("Failed to turn All LEDs off\r\n");
+        return;
+    }
 
     // Toggle is-alive LED and process messages at a fixed interval
     const uint32_t ticks_interval = BLINK_TIMER_PERIOD_MS * osKernelGetTickFreq() / 1000;
@@ -155,15 +168,17 @@ void blink_task(void *arg)
             printf("osDelay failed %d\r\n", status);
             return;
         }
-        led_toggle(LED_ALIVE);
+        if (mps3_leds_toggle(LED_ALIVE) != true) {
+            printf("Failed to toggle LED_ALIVE\r\n");
+            return;
+        }
 
         // Retrieve any/all existing messages with no delay
-        ui_msg_t msg;
+        ml_processing_state_t msg;
         while ((status = osMessageQueueGet(ui_msg_queue, &msg, NULL, 0)) == osOK) {
-            switch (msg.event) {
-                case UI_EVENT_ML_STATE_CHANGE:
-                    process_ml_state_change(get_ml_processing_state());
-                    break;
+            if (process_ml_state_change(msg) != true) {
+                printf("Failed to process new ML state\r\n");
+                return;
             }
         }
         // The only permitted status at the end is an empty queue

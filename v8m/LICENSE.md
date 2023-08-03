@@ -23,16 +23,7 @@ Each component should contain its own README file with license specified for its
             "License": "MIT",
             "Origin": "https://github.com/aws/amazon-freertos",
             "Category": "1",
-            "Version": "v6.1.12_rel",
-            "Security risk": "low"
-        },
-        {
-            "Component": "coreMQTT-Agent",
-            "Path": "lib/aws/coreMQTT-Agent",
-            "License": "MIT",
-            "Origin": "https://github.com/FreeRTOS/coreMQTT-Agent",
-            "Category": "2",
-            "Version": "3b743173ddc7ec00d3073462847db15580a56617",
+            "Version": "202203.00",
             "Security risk": "low"
         },
         {
@@ -85,8 +76,8 @@ Each component should contain its own README file with license specified for its
             "Path": "bsp/netxduo-config",
             "License": "Microsoft Software License Terms for Microsoft Azure RTOS",
             "Origin": "https://github.com/azure-rtos/netxduo",
-            "Category": "2",
-            "Version": "",
+            "Category": "1",
+            "Version": "2973652d801e92615caa285ad9ee13db19a26cb9",
             "Security risk": "low"
         }
     ]

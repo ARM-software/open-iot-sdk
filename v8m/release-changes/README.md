@@ -10,7 +10,7 @@ then automatically removed from the working tree and the index with `git rm`. Ho
 
 - Changelogs are for humans, not machines
 - Communicate the impact of changes, use multiple paragraphs if needed
-- Add a prefix that identifies the subsystem being changed, for example `mdh-arm:`
+- Add a prefix that identifies the subsystem being changed, for example `examples-blinky:`
 
 Examples:
 

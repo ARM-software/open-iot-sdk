@@ -1,10 +1,10 @@
-/* Copyright (c) 2021-2022, Arm Limited and Contributors. All rights reserved.
+/* Copyright (c) 2021-2023, Arm Limited and Contributors. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
 #include "blink_task.h"
-
 #include "cmsis_os2.h"
+#include "mps3_leds.h"
 
 #include <stdio.h>
 
@@ -25,23 +25,6 @@ enum {
     LED_ALL = 0xFF
 };
 
-static uint32_t *fpgaio_leds = (uint32_t *)0x49302000;
-
-void led_on(uint8_t bits)
-{
-    *fpgaio_leds |= bits;
-}
-
-void led_off(uint8_t bits)
-{
-    *fpgaio_leds &= ~bits;
-}
-
-void led_toggle(uint8_t bits)
-{
-    *fpgaio_leds ^= bits;
-}
-
 /*
  * Main task.
  *
@@ -57,7 +40,10 @@ void blink_task(void *arg)
 
     printf("Blink task started\r\n");
 
-    led_off(LED_ALL);
+    if (mps3_leds_turn_off(LED_ALL) != true) {
+        printf("Failed to turn all LEDs off\r\n");
+        return;
+    }
 
     const uint32_t ticks_interval = BLINK_TIMER_PERIOD_MS * osKernelGetTickFreq() / 1000;
     while (1) {
@@ -67,6 +53,9 @@ void blink_task(void *arg)
             return;
         }
 
-        led_toggle(LED_ALIVE);
+        if (mps3_leds_toggle(LED_ALIVE) != true) {
+            printf("Failed to toggle LED_ALIVE\r\n");
+            return;
+        }
     }
 }
