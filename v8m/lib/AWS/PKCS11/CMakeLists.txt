@@ -40,4 +40,5 @@ target_link_libraries(PKCS11
         aws-configs
         mbedtls-config
         cloud-credentials
+        AWS-extra
 )

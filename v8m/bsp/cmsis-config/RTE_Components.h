@@ -10,7 +10,10 @@
 #define DOMAIN_NS 1
 
 // RTOS options
-#define OS_DYNAMIC_MEM_SIZE (32768 * 3)
-#define OS_ROBIN_ENABLE     0
+#define OS_DYNAMIC_MEM_SIZE (40000 * 3)
+#define OS_ROBIN_ENABLE     1
+#define OS_TICK_FREQ        300
+
+#define OS_PRIVILEGE_MODE 1
 
 #endif // RTE_COMPONENTS_H

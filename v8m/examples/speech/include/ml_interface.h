@@ -5,6 +5,7 @@
 #ifndef ML_INTERFACE_H
 #define ML_INTERFACE_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -34,6 +35,11 @@ int ml_frame_stride();
 
 /* To be implemented by application to send inference result */
 void mqtt_send_inference_result(const char *message);
+
+/* Prevent race condition between tasks on serial terminal (UART)
+ */
+bool serial_lock();
+bool serial_unlock();
 
 #ifdef __cplusplus
 }

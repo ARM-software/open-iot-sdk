@@ -4,18 +4,17 @@
  */
 
 #include "ml_interface.h"
-
 #include "AudioUtils.hpp"
 #include "BufAttributes.hpp"
-#include "Classifier.hpp"
+#include "KwsClassifier.hpp"
+#include "KwsProcessing.hpp"
 #include "KwsResult.hpp"
 #include "Labels.hpp"
 #include "MicroNetKwsMfcc.hpp"
 #include "MicroNetKwsModel.hpp"
 #include "TensorFlowLiteMicro.hpp"
 #include "UseCaseCommonUtils.hpp"
-#include "bsp_serial.h"
-#include "cmsis.h"
+#include CMSIS_device_header
 #include "cmsis_os2.h"
 #include "device_mps3.h"   /* FPGA level definitions and functions. */
 #include "ethos-u55.h"     /* Mem map and configuration definitions of the Ethos U55 */
@@ -35,15 +34,41 @@
 #include <utility>
 #include <vector>
 
+#ifdef AUDIO_VSI
+
+#include "Driver_SAI.h"
 extern "C" {
-#include "hal/sai_api.h"
-#include "fvp_sai.h"
-#include "hal-toolbox/critical_section_api.h"
+#include "mbed_critical/mbed_critical.h"
 }
 
 #define AUDIO_BLOCK_NUM   (4)
 #define AUDIO_BLOCK_SIZE  (3200)
 #define AUDIO_BUFFER_SIZE (AUDIO_BLOCK_NUM * AUDIO_BLOCK_SIZE)
+
+// audio constants
+__attribute__((section(".bss.NoInit.audio_buf"))) __attribute__((aligned(4)))
+int16_t shared_audio_buffer[AUDIO_BUFFER_SIZE / 2];
+const int kAudioSampleFrequency = 16000;
+
+/* Audio events definitions */
+#define SEND_COMPLETED_Pos    0U                             /* Event: Send complete bit position */
+#define RECEIVE_COMPLETED_Pos 1U                             /* Event: Receive complete bit position */
+#define TX_UNDERFLOW_Pos      2U                             /* Event: Tx underflow bit position */
+#define RX_OVERFLOW_Pos       3U                             /* Event: Rx overflow bit position */
+#define FRAME_ERROR_Pos       4U                             /* Event: Frame error bit position */
+#define SEND_COMPLETE_Msk     (1UL << SEND_COMPLETED_Pos)    /* Event: Send complete Mask */
+#define RECEIVE_COMPLETE_Msk  (1UL << RECEIVE_COMPLETED_Pos) /* Event: Receive complete Mask */
+#define TX_UNDERFLOW_Msk      (1UL << TX_UNDERFLOW_Pos)      /* Event: Tx underflow Mask */
+#define RX_OVERFLOW_Msk       (1UL << RX_OVERFLOW_Pos)       /* Event: Rx overflow Mask */
+#define FRAME_ERROR_Msk       (1UL << FRAME_ERROR_Pos)       /* Event: Frame error Mask */
+
+extern ARM_DRIVER_SAI Driver_SAI0;
+
+#else /* !defined(AUDIO_VSI) */
+
+#include "InputFiles.hpp"
+
+#endif /* AUDIO_VSI */
 
 // Define tensor arena and declare functions required to access the model
 namespace arm {
@@ -58,30 +83,21 @@ extern size_t GetModelLen();
 
 namespace {
 
-typedef enum { ML_EVENT_START, ML_EVENT_STOP } ml_event_t;
-
-typedef struct {
-    ml_event_t event;
-} ml_msg_t;
+#define ML_EVENT_START (1 << 0)
+#define ML_EVENT_STOP  (1 << 1)
 
 typedef struct {
     ml_processing_state_t state;
 } ml_mqtt_msg_t;
 
 // Import
-using KwsClassifier = arm::app::Classifier;
 using namespace arm::app;
 
-// audio constants
-__attribute__((section(".bss.NoInit.audio_buf"))) __attribute__((aligned(4)))
-int16_t shared_audio_buffer[AUDIO_BUFFER_SIZE / 2];
-const int kAudioSampleFrequency = 16000;
-
 // Processing state
-static osMessageQueueId_t ml_msg_queue = NULL;
+static osEventFlagsId_t ml_process_flags = NULL;
 static osMessageQueueId_t ml_mqtt_msg_queue = NULL;
 osMutexId_t ml_mutex = NULL;
-ml_processing_state_t ml_processing_state;
+osMutexId_t serial_mutex = NULL;
 ml_processing_change_handler_t ml_processing_change_handler = NULL;
 void *ml_processing_change_ptr = NULL;
 const std::array<std::pair<const char *, ml_processing_state_t>, 12> label_to_state{
@@ -95,8 +111,8 @@ const std::array<std::pair<const char *, ml_processing_state_t>, 12> label_to_st
     std::pair<const char *, ml_processing_state_t>{"right", ML_HEARD_RIGHT},
     std::pair<const char *, ml_processing_state_t>{"on", ML_HEARD_ON},
     std::pair<const char *, ml_processing_state_t>{"off", ML_HEARD_OFF},
-    std::pair<const char *, ml_processing_state_t>{"stop", ML_HEARD_GO},
-    std::pair<const char *, ml_processing_state_t>{"go", ML_HEARD_STOP},
+    std::pair<const char *, ml_processing_state_t>{"go", ML_HEARD_GO},
+    std::pair<const char *, ml_processing_state_t>{"stop", ML_HEARD_STOP},
 };
 
 extern "C" {
@@ -107,18 +123,16 @@ const char *get_inference_result_string(ml_processing_state_t ref_state)
 
 void ml_task_inference_start()
 {
-    const ml_msg_t msg = {ML_EVENT_START};
-    if (osMessageQueuePut(ml_msg_queue, (void *)&msg, 0, 0) != osOK) {
-        printf_err("Failed to send message to ml_msg_queue\r\n");
-    }
+    info("Signal task inference start\r\n");
+    osEventFlagsClear(ml_process_flags, ML_EVENT_STOP);
+    osEventFlagsSet(ml_process_flags, ML_EVENT_START);
 }
 
 void ml_task_inference_stop()
 {
-    const ml_msg_t msg = {ML_EVENT_STOP};
-    if (osMessageQueuePut(ml_msg_queue, (void *)&msg, 0, 0) != osOK) {
-        printf_err("Failed to send message to ml_msg_queue\r\n");
-    }
+    info("Signal task inference stop\r\n");
+    osEventFlagsClear(ml_process_flags, ML_EVENT_START);
+    osEventFlagsSet(ml_process_flags, ML_EVENT_STOP);
 }
 } // extern "C" {
 
@@ -158,6 +172,10 @@ void set_ml_processing_state(ml_processing_state_t new_state)
         return;
     }
 
+    // In this use case, only changes in state are relevant. Additionally,
+    // this avoids reporting the same keyword detected twice in adjacent,
+    // overlapping inference windows.
+    static ml_processing_state_t ml_processing_state{ML_SILENCE};
     if (new_state != ml_processing_state) {
         // mqtt_send_inference_result(new_state);
         const ml_mqtt_msg_t msg = {new_state};
@@ -185,63 +203,64 @@ void set_ml_processing_state(ml_processing_state_t new_state)
 // Model
 arm::app::ApplicationContext caseContext;
 
+#ifdef AUDIO_VSI
+
 // Audio driver data
 void (*event_fn)(void *);
 void *event_ptr = nullptr;
 
-// Audio driver configuration & event management
-static void AudioEvent(mdh_sai_t *self, void *ctx, mdh_sai_transfer_complete_t code)
+// Audio driver callback function for event management
+static void ARM_SAI_SignalEvent(uint32_t event)
 {
-    (void)self;
-    (void)ctx;
-
-    if (code == MDH_SAI_TRANSFER_COMPLETE_CANCELLED) {
-        printf_err("Transfer cancelled\n");
-    }
-    if (code == MDH_SAI_TRANSFER_COMPLETE_DONE) {
+    if ((event & SEND_COMPLETE_Msk) == ARM_SAI_EVENT_SEND_COMPLETE) {
         if (event_fn) {
             event_fn(event_ptr);
         }
     }
-}
-
-static void sai_handler_error(mdh_sai_t *self, mdh_sai_event_t code)
-{
-    (void)self;
-    (void)code;
-
-    printf_err("Error during SAI transfer\n");
+    if ((event & RECEIVE_COMPLETE_Msk) == ARM_SAI_EVENT_RECEIVE_COMPLETE) {
+        if (event_fn) {
+            event_fn(event_ptr);
+        }
+    }
+    if ((event & TX_UNDERFLOW_Msk) == ARM_SAI_EVENT_TX_UNDERFLOW) {
+        printf_err("Error TX is enabled but no data is being sent\n");
+    }
+    if ((event & RX_OVERFLOW_Msk) == ARM_SAI_EVENT_RX_OVERFLOW) {
+        printf_err("Error RX is enabled but no data is being received\n");
+    }
+    if ((event & FRAME_ERROR_Msk) == ARM_SAI_EVENT_FRAME_ERROR) {
+        printf_err("Frame error occured\n");
+    }
 }
 
 int AudioDrv_Setup(void (*event_handler)(void *), void *event_handler_ptr)
 {
-    fvp_sai_t *fvpsai = fvp_sai_init(1U, 16U, static_cast<uint32_t>(kAudioSampleFrequency), AUDIO_BLOCK_SIZE);
-
-    if (!fvpsai) {
-        printf_err("Failed to set up FVP SAI!\n");
+    if (Driver_SAI0.Initialize(ARM_SAI_SignalEvent) != ARM_DRIVER_OK) {
+        printf_err("Failed to set up FVP VSI!\n");
         return -1;
     }
 
-    mdh_sai_t *sai = &fvpsai->sai;
-    mdh_sai_status_t ret = mdh_sai_set_transfer_complete_callback(sai, AudioEvent);
-
-    if (ret != MDH_SAI_STATUS_NO_ERROR) {
-        printf_err("Failed to set transfer complete callback");
-        return ret;
+    if (Driver_SAI0.PowerControl(ARM_POWER_FULL) != ARM_DRIVER_OK) {
+        printf_err("Failed to set the driver to operate with full power!\n");
+        return -1;
     }
 
-    ret = mdh_sai_set_event_callback(sai, sai_handler_error);
-
-    if (ret != MDH_SAI_STATUS_NO_ERROR) {
-        printf_err("Failed to enable transfer error callback");
-        return ret;
+    if (Driver_SAI0.Control(ARM_SAI_CONTROL_RX, 1, 0) != ARM_DRIVER_OK) {
+        printf_err("Failed to enable the VSI receiver!\n");
+        return -1;
     }
 
-    ret = mdh_sai_transfer(sai, reinterpret_cast<uint8_t *>(shared_audio_buffer), AUDIO_BLOCK_NUM, NULL);
+    if (Driver_SAI0.Control(ARM_SAI_CONFIGURE_RX | ARM_SAI_PROTOCOL_USER | ARM_SAI_DATA_SIZE(16),
+                            AUDIO_BLOCK_SIZE,
+                            static_cast<uint32_t>(kAudioSampleFrequency))
+        != ARM_DRIVER_OK) {
+        printf_err("Failed to configure the receiver!\n");
+        return -1;
+    }
 
-    if (ret != MDH_SAI_STATUS_NO_ERROR) {
-        printf_err("Failed to start audio transfer");
-        return ret;
+    if (Driver_SAI0.Receive(reinterpret_cast<uint32_t *>(shared_audio_buffer), AUDIO_BLOCK_NUM) != ARM_DRIVER_OK) {
+        printf_err("Failed to start receiving the data!\n");
+        return -1;
     }
 
     event_fn = event_handler;
@@ -335,9 +354,9 @@ private:
 
     size_t get_block_under_write() const
     {
-        hal_critical_section_enter();
+        core_util_critical_section_enter();
         auto result = block_under_write;
-        hal_critical_section_exit();
+        core_util_critical_section_exit();
         return result;
     }
 
@@ -351,6 +370,8 @@ private:
     osSemaphoreId_t semaphore = osSemaphoreNew(1U, 1U, NULL);
 };
 
+#endif /* AUDIO_VSI */
+
 /**
  * @brief           Presents inference results using the data presentation
  *                  object.
@@ -358,7 +379,7 @@ private:
  * @param[in]       results     Vector of classification results to be displayed.
  * @return          true if successful, false otherwise.
  **/
-static void PresentInferenceResult(const arm::app::kws::KwsResult &result);
+static bool PresentInferenceResult(const arm::app::kws::KwsResult &result);
 
 /**
  * @brief Returns a function to perform feature calculation and populates input tensor data with
@@ -429,8 +450,10 @@ void ProcessAudio(ApplicationContext &ctx)
 
     /* Deduce the data length required for 1 inference from the network parameters. */
     auto audioDataWindowSize = kNumRows * frameStride + (frameLength - frameStride); // 16000
-    auto mfccWindowSize = frameLength;                                               // 640
-    auto mfccWindowStride = frameStride;                                             // 320
+#ifdef AUDIO_VSI
+    auto mfccWindowSize = frameLength;   // 640
+#endif                                   /* AUDIO_VSI */
+    auto mfccWindowStride = frameStride; // 320
 
     /* We choose to move by half the window size => for a 1 second window size
      * there is an overlap of 0.5 seconds. */
@@ -461,6 +484,8 @@ void ProcessAudio(ApplicationContext &ctx)
         return;
     }
 
+#ifdef AUDIO_VSI
+
     // Initialize the sliding window
     auto circularSlider = CircularSlidingWindow<int16_t>(
         shared_audio_buffer, AUDIO_BLOCK_SIZE / sizeof(int16_t), AUDIO_BLOCK_NUM, mfccWindowSize, mfccWindowStride);
@@ -473,15 +498,20 @@ void ProcessAudio(ApplicationContext &ctx)
     auto mfccAudioData = std::vector<int16_t>(mfccWindowSize, 0);
     size_t audio_index = 0;
 
-    // Start processing audio data as it arrive
-    ml_msg_t msg;
+#endif /* AUDIO_VSI */
+
     while (true) {
+
+#ifdef AUDIO_VSI
+
+        printf("Running inference as audio input is received from the Virtual Streaming Interface\r\n");
+
         while (true) {
-            if (osMessageQueueGet(ml_msg_queue, &msg, NULL, 0) == osOK) {
-                if (msg.event == ML_EVENT_STOP) {
-                    /* jump out to outer loop */
-                    break;
-                } /* else it's ML_EVENT_START so we fall through and continue with the code */
+            uint32_t flags = osEventFlagsWait(ml_process_flags, ML_EVENT_STOP, osFlagsWaitAny, 0);
+            if (flags == ML_EVENT_STOP) {
+                /* jump out to outer loop */
+                info("Stopping audio processing\r\n");
+                break;
             }
 
             /* The first window does not have cache ready. */
@@ -518,21 +548,94 @@ void ProcessAudio(ApplicationContext &ctx)
                 set_ml_processing_state(convert_inference_result(result.m_resultVec[0].m_label));
             }
 
-            PresentInferenceResult(result);
+            if (PresentInferenceResult(result) != true) {
+                printf_err("Failed to present inference result");
+                return;
+            }
             first_iteration = false;
             ++audio_index;
         } /* while (true) */
 
-        while (osMessageQueueGet(ml_msg_queue, &msg, NULL, osWaitForever) == osOK) {
-            if (msg.event == ML_EVENT_START) {
+#else /* !defined(AUDIO_VSI) */
+
+        printf("Running inference on an audio clip in local memory\r\n");
+
+        const uint32_t numMfccFeatures = inputShape->data[MicroNetKwsModel::ms_inputColsIdx];
+        const uint32_t numMfccFrames = inputShape->data[arm::app::MicroNetKwsModel::ms_inputRowsIdx];
+
+        KwsPreProcess preProcess = KwsPreProcess(
+            inputTensor, numMfccFeatures, numMfccFrames, ctx.Get<int>("frameLength"), ctx.Get<int>("frameStride"));
+
+        std::vector<ClassificationResult> singleInfResult;
+        KwsPostProcess postProcess = KwsPostProcess(outputTensor,
+                                                    ctx.Get<arm::app::KwsClassifier &>("classifier"),
+                                                    ctx.Get<std::vector<std::string> &>("labels"),
+                                                    singleInfResult);
+
+        /* Creating a sliding window through the whole audio clip. */
+        auto audioDataSlider = audio::SlidingWindow<const int16_t>(
+            GetAudioArray(0), GetAudioArraySize(0), preProcess.m_audioDataWindowSize, preProcess.m_audioDataStride);
+
+        /* Start sliding through audio clip. */
+        while (audioDataSlider.HasNext()) {
+            uint32_t flags = osEventFlagsWait(ml_process_flags, ML_EVENT_STOP, osFlagsWaitAny, 0);
+            if (flags == ML_EVENT_STOP) {
+                /* Jump out to the outer loop, which may restart inference on an ML_EVENT_START signal */
+                info("Inference stopped by a signal.\r\n");
                 break;
-            } /* else it's ML_EVENT_STOP so we keep waiting */
+            }
+
+            const int16_t *inferenceWindow = audioDataSlider.Next();
+            if (!preProcess.DoPreProcess(inferenceWindow, audioDataSlider.Index())) {
+                printf_err("Pre-processing failed.");
+                return;
+            }
+
+            if (!model.RunInference()) {
+                printf_err("Inference failed.");
+                return;
+            }
+
+            if (!postProcess.DoPostProcess()) {
+                printf_err("Post-processing failed.");
+                return;
+            }
+
+            auto result = kws::KwsResult(singleInfResult,
+                                         audioDataSlider.Index() * secondsPerSample * preProcess.m_audioDataStride,
+                                         audioDataSlider.Index(),
+                                         scoreThreshold);
+
+            if (result.m_resultVec.empty()) {
+                set_ml_processing_state(ML_UNKNOWN);
+            } else {
+                set_ml_processing_state(convert_inference_result(result.m_resultVec[0].m_label));
+            }
+
+            if (PresentInferenceResult(result) != true) {
+                printf_err("Failed to present inference result");
+                return;
+            }
+        } /* while (audioDataSlider.HasNext()) */
+
+#endif /* AUDIO_VSI */
+
+        while (true) {
+            uint32_t flags = osEventFlagsWait(ml_process_flags, ML_EVENT_START, osFlagsWaitAny, osWaitForever);
+            if (flags == ML_EVENT_START) {
+                printf_err("Restarting audio processing %u\r\n", flags);
+                break;
+            }
         }
     } /* while (true) */
 }
 
-static void PresentInferenceResult(const arm::app::kws::KwsResult &result)
+static bool PresentInferenceResult(const arm::app::kws::KwsResult &result)
 {
+    if (!serial_lock()) {
+        return false;
+    }
+
     /* Display each result */
     if (result.m_resultVec.empty()) {
         info("For timestamp: %f (inference #: %" PRIu32 "); label: %s; threshold: %f\n",
@@ -550,6 +653,10 @@ static void PresentInferenceResult(const arm::app::kws::KwsResult &result)
                  (double)result.m_threshold);
         }
     }
+
+    serial_unlock();
+
+    return true;
 }
 
 /**
@@ -653,6 +760,7 @@ GetFeatureCalculator(audio::MicroNetKwsMFCC &mfcc, TfLiteTensor *inputTensor, si
 
 } // anonymous namespace
 
+#ifdef USE_ETHOS
 extern struct ethosu_driver ethosu_drv; /* Default Ethos-U55 device driver */
 
 /**
@@ -666,7 +774,7 @@ static int arm_npu_init(void);
  *          implementation.
  **/
 extern "C" {
-void arm_npu_irq_handler(void)
+void ETHOS_U55_Handler(void)
 {
     /* Call the default interrupt handler from the NPU driver */
     ethosu_irq_handler(&ethosu_drv);
@@ -682,12 +790,12 @@ static void arm_npu_irq_init(void)
 
     /* Register the EthosU IRQ handler in our vector table.
      * Note, this handler comes from the EthosU driver */
-    NVIC_SetVector(ethosu_irqnum, (uint32_t)arm_npu_irq_handler);
+    NVIC_SetVector(ethosu_irqnum, (uint32_t)ETHOS_U55_Handler);
 
     /* Enable the IRQ */
     NVIC_EnableIRQ(ethosu_irqnum);
 
-    debug("EthosU IRQ#: %u, Handler: 0x%p\n", ethosu_irqnum, arm_npu_irq_handler);
+    debug("EthosU IRQ#: %u, Handler: 0x%p\n", ethosu_irqnum, ETHOS_U55_Handler);
 }
 
 static int _arm_npu_timing_adapter_init(void)
@@ -796,20 +904,36 @@ static int arm_npu_init(void)
 
     return 0;
 }
+#endif /* USE_ETHOS */
 
 extern "C" {
 
-ml_processing_state_t get_ml_processing_state()
+bool serial_lock()
 {
-    if (!ml_lock()) {
-        return ML_UNKNOWN;
+    bool success = false;
+    if (serial_mutex) {
+        osStatus_t status = osMutexAcquire(serial_mutex, osWaitForever);
+        if (status != osOK) {
+            printf_err("osMutexAcquire serial_mutex failed %d\r\n", status);
+        } else {
+            success = true;
+        }
     }
+    return success;
+}
 
-    ml_processing_state_t result = ml_processing_state;
-
-    ml_unlock();
-
-    return result;
+bool serial_unlock()
+{
+    bool success = false;
+    if (serial_mutex) {
+        osStatus_t status = osMutexRelease(serial_mutex);
+        if (status != osOK) {
+            printf_err("osMutexRelease serial_mutex failed %d\r\n", status);
+        } else {
+            success = true;
+        }
+    }
+    return success;
 }
 
 void on_ml_processing_change(ml_processing_change_handler_t handler, void *self)
@@ -822,11 +946,13 @@ int ml_interface_init()
 {
     static arm::app::MicroNetKwsModel model; /* Model wrapper object. */
 
+#ifdef USE_ETHOS
     // Initialize the ethos U55
     if (arm_npu_init() != 0) {
         printf_err("Failed to arm npu\n");
         return -1;
     }
+#endif /* USE_ETHOS */
 
     /* Load the model. */
     if (!model.Init(::arm::app::tensorArena,
@@ -843,8 +969,8 @@ int ml_interface_init()
     caseContext.Set<int>("frameStride", arm::app::kws::g_FrameStride);
     caseContext.Set<float>("scoreThreshold", arm::app::kws::g_ScoreThreshold); /* Normalised score threshold. */
 
-    static arm::app::Classifier classifier; /* classifier wrapper object. */
-    caseContext.Set<arm::app::Classifier &>("classifier", classifier);
+    static KwsClassifier classifier; /* classifier wrapper object. */
+    caseContext.Set<arm::app::KwsClassifier &>("classifier", classifier);
 
     static std::vector<std::string> labels;
     GetLabelsVector(labels);
@@ -866,21 +992,29 @@ void ml_task(void *arg)
         return;
     }
 
-    ml_msg_queue = osMessageQueueNew(10, sizeof(ml_msg_t), NULL);
-    if (!ml_msg_queue) {
-        printf_err("Failed to create ml msg queue\r\n");
+    serial_mutex = osMutexNew(NULL);
+    if (!serial_mutex) {
+        printf_err("Failed to create ml_mutex\r\n");
         return;
     }
 
-    while (1) {
-        ml_msg_t msg;
-        if (osMessageQueueGet(ml_msg_queue, &msg, NULL, osWaitForever) == osOK) {
-            if (msg.event == ML_EVENT_START) {
+    ml_process_flags = osEventFlagsNew(NULL);
+    if (!ml_process_flags) {
+        printf_err("Failed to create ml process flags\r\n");
+        return;
+    }
+
+    while (true) {
+        uint32_t flags = osEventFlagsWait(ml_process_flags, ML_EVENT_START, osFlagsWaitAny, osWaitForever);
+        if (flags) {
+            if (flags == ML_EVENT_START) {
+                info("Initial start of audio processing\r\n");
                 break;
-            } /* else it's ML_EVENT_STOP so we keep waiting the loop */
-        } else {
-            printf_err("osMessageQueueGet ml msg queue failed\r\n");
-            return;
+            }
+            if (flags & osFlagsError) {
+                printf_err("Failed to wait for ml_process_flags: %08X\r\n", flags);
+                return;
+            }
         }
     }
 

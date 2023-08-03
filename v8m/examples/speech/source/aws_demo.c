@@ -27,7 +27,7 @@ extern void DEMO_RUNNER_RunDemos(void);
 
 psa_key_handle_t xOTACodeVerifyKeyHandle = NULL;
 
-void network_state_callback(network_state_callback_event_t status)
+void network_state_callback(const network_state_event_args_t *event_args)
 {
     // LwIP may call the callback more than once, e.g. once per IPv4 and IPv6
     static bool handled = false;
@@ -36,7 +36,7 @@ void network_state_callback(network_state_callback_event_t status)
     }
     handled = true;
 
-    if (status == NETWORK_UP) {
+    if (event_args->event == NETWORK_UP) {
         printf("[INF] network up, starting demo\r\n");
 
         if (strcmp(clientcredentialMQTT_BROKER_ENDPOINT, "endpointid.amazonaws.com") == 0) {

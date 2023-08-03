@@ -9,3 +9,8 @@ target_include_directories(aws-configs
     INTERFACE
         .
 )
+
+target_compile_definitions(aws-configs
+    INTERFACE
+        LIBRARY_LOG_LEVEL=LOG_INFO
+)

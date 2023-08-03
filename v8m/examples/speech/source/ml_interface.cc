@@ -9,7 +9,6 @@
 #include "AsrResult.hpp"
 #include "AudioUtils.hpp"
 #include "BufAttributes.hpp"
-#include "Classifier.hpp"
 #include "Labels.hpp"
 #include "OutputDecode.hpp"
 #include "TensorFlowLiteMicro.hpp"
@@ -18,8 +17,7 @@
 #include "Wav2LetterModel.hpp"
 #include "Wav2LetterPostprocess.hpp"
 #include "Wav2LetterPreprocess.hpp"
-#include "bsp_serial.h"
-#include "cmsis.h"
+#include CMSIS_device_header
 #include "cmsis_os2.h"
 #include "device_mps3.h" /* FPGA level definitions and functions. */
 #include "dsp_interfaces.h"
@@ -41,10 +39,6 @@
 #include <utility>
 #include <vector>
 
-extern "C" {
-#include "hal-toolbox/critical_section_api.h"
-}
-
 #include "audio_config.h"
 
 // Define tensor arena and declare functions required to access the model
@@ -61,40 +55,35 @@ typedef std::string ml_processing_state_t;
 
 namespace {
 
-typedef enum { ML_EVENT_START, ML_EVENT_STOP } ml_event_t;
-
-typedef struct {
-    ml_event_t event;
-} ml_msg_t;
+#define ML_EVENT_START (1 << 0)
+#define ML_EVENT_STOP  (1 << 1)
 
 typedef struct {
     char *result;
 } ml_mqtt_msg_t;
 
 // Import
-using KwsClassifier = arm::app::Classifier;
 using namespace arm::app;
 
 // Processing state
-static osMessageQueueId_t ml_msg_queue = NULL;
+static osEventFlagsId_t ml_process_flags = NULL;
 static osMessageQueueId_t ml_mqtt_msg_queue = NULL;
 osMutexId_t ml_mutex = NULL;
+osMutexId_t serial_mutex = NULL;
 
 extern "C" {
 void ml_task_inference_start()
 {
-    const ml_msg_t msg = {ML_EVENT_START};
-    if (osMessageQueuePut(ml_msg_queue, (void *)&msg, 0, 0) != osOK) {
-        printf_err("Failed to send message to ml_msg_queue\r\n");
-    }
+    info("Signal task inference start\r\n");
+    osEventFlagsClear(ml_process_flags, ML_EVENT_STOP);
+    osEventFlagsSet(ml_process_flags, ML_EVENT_START);
 }
 
 void ml_task_inference_stop()
 {
-    const ml_msg_t msg = {ML_EVENT_STOP};
-    if (osMessageQueuePut(ml_msg_queue, (void *)&msg, 0, 0) != osOK) {
-        printf_err("Failed to send message to ml_msg_queue\r\n");
-    }
+    info("Signal task inference stop\r\n");
+    osEventFlagsClear(ml_process_flags, ML_EVENT_START);
+    osEventFlagsSet(ml_process_flags, ML_EVENT_STOP);
 }
 } // extern "C" {
 
@@ -226,7 +215,6 @@ void ProcessAudio(ApplicationContext &ctx, DSPML *dspMLConnection)
     size_t inferenceWindowLen = audioParamsWinLen;
 
     // Start processing audio data as it arrive
-    ml_msg_t msg;
     uint32_t inferenceIndex = 0;
     // We do inference on 2 audio segments before reporting a result
     // We do not have the concept of audio clip in a streaming application
@@ -239,11 +227,11 @@ void ProcessAudio(ApplicationContext &ctx, DSPML *dspMLConnection)
 
     while (true) {
         while (true) {
-            if (osMessageQueueGet(ml_msg_queue, &msg, NULL, 0) == osOK) {
-                if (msg.event == ML_EVENT_STOP) {
-                    /* jump out to outer loop */
-                    break;
-                } /* else it's ML_EVENT_START so we fall through and continue with the code */
+            uint32_t flags = osEventFlagsWait(ml_process_flags, ML_EVENT_STOP, osFlagsWaitAny, 0);
+            if (flags == ML_EVENT_STOP) {
+                /* jump out to outer loop */
+                info("Stopping audio processing\r\n");
+                break;
             }
 
             // Wait for the DSP task signal to start the recognition
@@ -263,7 +251,15 @@ void ProcessAudio(ApplicationContext &ctx, DSPML *dspMLConnection)
                 printf_err("Pre-processing failed.");
             }
 
-            info("Start running inference\n");
+            if (!serial_lock()) {
+                return;
+            }
+#ifdef AUDIO_VSI
+            info("Start running inference on audio input from the Virtual Streaming Interface\r\n");
+#else
+            info("Start running inference on an audio clip in local memory\r\n");
+#endif
+            serial_unlock();
 
             /* Run inference over this audio clip sliding window. */
             if (!model.RunInference()) {
@@ -307,10 +303,12 @@ void ProcessAudio(ApplicationContext &ctx, DSPML *dspMLConnection)
             // Inference loop
         } /* while (true) */
 
-        while (osMessageQueueGet(ml_msg_queue, &msg, NULL, osWaitForever) == osOK) {
-            if (msg.event == ML_EVENT_START) {
+        while (true) {
+            uint32_t flags = osEventFlagsWait(ml_process_flags, ML_EVENT_START, osFlagsWaitAny, osWaitForever);
+            if (flags == ML_EVENT_START) {
+                info("Restarting audio processing\r\n", flags);
                 break;
-            } /* else it's ML_EVENT_STOP so we keep waiting */
+            }
         }
     } /* while (true) */
 }
@@ -327,12 +325,16 @@ static bool PresentInferenceResult(const std::vector<arm::app::asr::AsrResult> &
 
     /* Get each inference result string using the decoder. */
     for (const auto &result : results) {
+        if (!serial_lock()) {
+            return false;
+        }
         std::string infResultStr = audio::asr::DecodeOutput(result.m_resultVec);
 
-        info("For timestamp: %f (inference #: %" PRIu32 "); label: %s\n",
+        info("For timestamp: %f (inference #: %" PRIu32 "); label: %s\r\n",
              (double)result.m_timeStamp,
              result.m_inferenceNumber,
              infResultStr.c_str());
+        serial_unlock();
     }
 
     /* Get the decoded result for the combined result. */
@@ -348,6 +350,7 @@ static bool PresentInferenceResult(const std::vector<arm::app::asr::AsrResult> &
 
 } // anonymous namespace
 
+#ifdef USE_ETHOS
 extern struct ethosu_driver ethosu_drv; /* Default Ethos-U55 device driver */
 
 /**
@@ -361,7 +364,7 @@ static int arm_npu_init(void);
  *          implementation.
  **/
 extern "C" {
-void arm_npu_irq_handler(void)
+void ETHOS_U55_Handler(void)
 {
     /* Call the default interrupt handler from the NPU driver */
     ethosu_irq_handler(&ethosu_drv);
@@ -377,12 +380,12 @@ static void arm_npu_irq_init(void)
 
     /* Register the EthosU IRQ handler in our vector table.
      * Note, this handler comes from the EthosU driver */
-    NVIC_SetVector(ethosu_irqnum, (uint32_t)arm_npu_irq_handler);
+    NVIC_SetVector(ethosu_irqnum, (uint32_t)ETHOS_U55_Handler);
 
     /* Enable the IRQ */
     NVIC_EnableIRQ(ethosu_irqnum);
 
-    debug("EthosU IRQ#: %u, Handler: 0x%p\n", ethosu_irqnum, arm_npu_irq_handler);
+    debug("EthosU IRQ#: %u, Handler: 0x%p\n", ethosu_irqnum, ETHOS_U55_Handler);
 }
 
 static int _arm_npu_timing_adapter_init(void)
@@ -491,19 +494,51 @@ static int arm_npu_init(void)
 
     return 0;
 }
+#endif /* USE_ETHOS */
 
 extern "C" {
+
+bool serial_lock()
+{
+    bool success = false;
+    if (serial_mutex) {
+        osStatus_t status = osMutexAcquire(serial_mutex, osWaitForever);
+        if (status != osOK) {
+            printf_err("osMutexAcquire serial_mutex failed %d\r\n", status);
+        } else {
+            success = true;
+        }
+    }
+    return success;
+}
+
+bool serial_unlock()
+{
+    bool success = false;
+    if (serial_mutex) {
+        osStatus_t status = osMutexRelease(serial_mutex);
+        if (status != osOK) {
+            printf_err("osMutexRelease serial_mutex failed %d\r\n", status);
+        } else {
+            success = true;
+        }
+    }
+    return success;
+}
+
 int ml_interface_init()
 {
     static arm::app::Wav2LetterModel model;    /* Model wrapper object. */
     static arm::app::AsrClassifier classifier; /* Classifier wrapper object. */
     static std::vector<std::string> labels;
 
+#ifdef USE_ETHOS
     // Initialize the ethos U55
     if (arm_npu_init() != 0) {
         printf_err("Failed to arm npu\n");
         return -1;
     }
+#endif /* USE_ETHOS */
 
     /* Load the model. */
     if (!model.Init(::arm::app::tensorArena,
@@ -543,21 +578,29 @@ void ml_task(void *pvParameters)
         return;
     }
 
-    ml_msg_queue = osMessageQueueNew(10, sizeof(ml_msg_t), NULL);
-    if (!ml_msg_queue) {
-        printf_err("Failed to create ml msg queue\r\n");
+    serial_mutex = osMutexNew(NULL);
+    if (!serial_mutex) {
+        printf_err("Failed to create ml_mutex\r\n");
         return;
     }
 
-    while (1) {
-        ml_msg_t msg;
-        if (osMessageQueueGet(ml_msg_queue, &msg, NULL, osWaitForever) == osOK) {
-            if (msg.event == ML_EVENT_START) {
+    ml_process_flags = osEventFlagsNew(NULL);
+    if (!ml_process_flags) {
+        printf_err("Failed to create ml process flags\r\n");
+        return;
+    }
+
+    while (true) {
+        uint32_t flags = osEventFlagsWait(ml_process_flags, ML_EVENT_START, osFlagsWaitAny, osWaitForever);
+        if (flags) {
+            if (flags == ML_EVENT_START) {
+                info("Initial start of audio processing\r\n");
                 break;
-            } /* else it's ML_EVENT_STOP so we keep waiting the loop */
-        } else {
-            printf_err("osMessageQueueGet ml msg queue failed\r\n");
-            return;
+            }
+            if (flags & osFlagsError) {
+                printf_err("Failed to wait for ml_process_flags: %08X\r\n", flags);
+                return;
+            }
         }
     }
 

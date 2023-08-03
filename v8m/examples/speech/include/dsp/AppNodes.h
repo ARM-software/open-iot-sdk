@@ -30,6 +30,7 @@
 
 #include "audio_config.h"
 #include "dsp_interfaces.h"
+#include "ml_interface.h"
 #include <stdio.h>
 
 #if defined(ENABLE_DSP)
@@ -47,13 +48,19 @@ public:
     GenericSource<int16_t,outputSize>(dst),mDsp(dsp){};
 
     int run(){
+        if (!serial_lock()) {
+            return -1;
+        }
+#ifdef AUDIO_VSI
         mDsp->waitForNewBuffer();
+#endif
         printf("DSP Source\r\n");
+        serial_unlock();
 
         set_audio_timestamp(1.0*outputSize / SAMPLE_RATE);
 
         int16_t *b=this->getWriteBuffer();
-        int16_t *current = mDsp->getCurrentBuffer();
+        const int16_t *current = mDsp->getCurrentBuffer();
 
         memcpy(b,current,outputSize*sizeof(int16_t));
         return 0;
@@ -87,9 +94,13 @@ public:
         }
         else
         {
+            if (!serial_lock()) {
+                return -1;
+            }
             printf("ML Processing\r\n");
+            serial_unlock();
             dspMLConnection->copyToDSPBufferFrom(b);
-            dspMLConnection->swapBuffersAndWakeUpMLThread();          
+            dspMLConnection->swapBuffersAndWakeUpMLThread();
         }
         return 0;
     };

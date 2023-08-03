@@ -277,7 +277,8 @@ void azure_task(void *arg)
     app_msg_queue = osMessageQueueNew(5, sizeof(app_msg_t), NULL);
     VERIFY_OR_EXIT(app_msg_queue, "Failed to create a app msg queue");
 
-    telemetryTimer = osTimerNew(telemetry_timer_cb, osTimerPeriodic, NULL, NULL);
+    // The timer is restarted manually when a telemetry message has been sent
+    telemetryTimer = osTimerNew(telemetry_timer_cb, osTimerOnce, NULL, NULL);
     VERIFY_OR_EXIT(telemetryTimer, "Creating telemetryTimer failed (osTimerNew returned NULL)");
 
     printf("Initialising IoT Hub\r\n");
@@ -316,6 +317,9 @@ void azure_task(void *arg)
             msg.event = APP_EVENT_NONE;
         }
 
+        if (!serial_lock()) {
+            return;
+        }
         switch (msg.event) {
             case APP_EVENT_IOT_HUB_START_COMMISSIONING: {
                 printf("Setting up provisioning for device %s with endpoint %s and scope id %s\r\n",
@@ -437,6 +441,9 @@ void azure_task(void *arg)
                     VERIFY_OR_EXIT(!res, "IoTHubDeviceClient_LL_SendEventAsync failed: %d", res);
                     IoTHubMessage_Destroy(message_handle);
                 }
+                // restart sending telemetry
+                res = osTimerStart(telemetryTimer, osKernelGetTickFreq());
+                VERIFY_OR_EXIT(!res, "osTimerStart telemetryTimer failed with code: %d", res);
             } break;
             case APP_EVENT_SEND_MSG_OK:
                 printf("Message sent\r\n");
@@ -456,6 +463,7 @@ void azure_task(void *arg)
             default:
                 break;
         }
+        serial_unlock();
     }
 
 exit:

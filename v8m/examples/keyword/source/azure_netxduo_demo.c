@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "iotsdk/nx_driver_mdh.h"
+#include "iotsdk/nx_driver_cmsis_eth.h"
 #include "azure/core/az_log.h"
 #include "azure/iot/az_iot_common.h"
 #include "azure_iot_credentials.h"
@@ -12,6 +12,8 @@
 #include "ml_interface.h"
 #include "nx_api.h"
 #include "nx_azure_iot.h"
+#include "nx_azure_iot_adu_agent.h"
+#include "nx_azure_iot_adu_agent_psa_driver.h"
 #include "nx_azure_iot_cert.h"
 #include "nx_azure_iot_ciphersuites.h"
 #include "nx_azure_iot_hub_client.h"
@@ -21,10 +23,27 @@
 #include "nxd_dns.h"
 #include "nxd_sntp_client.h"
 
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+
+#ifndef SAMPLE_MANUFACTURER
+#error "SAMPLE_MANUFACTURER not defined"
+#endif
+
+#ifndef SAMPLE_MODEL
+#error "SAMPLE_MODEL not defined"
+#endif
+
+/*
+ * Note: The PnP model comes from the following sample in the NetX Duo repository:
+ * addons/azure_iot/samples/sample_azure_iot_embedded_sdk_pnp.c
+ * When we update NetX Duo, we also need to ensure this ID matches the one used in
+ * the above file. It refers to models submitted to http://github.com/Azure/iot-plugandplay-models
+ */
+#define PNP_MODEL "dtmi:com:example:Thermostat;4"
 
 extern VOID sample_connection_monitor(NX_IP *ip_ptr,
                                       NX_AZURE_IOT_HUB_CLIENT *iothub_client_ptr,
@@ -33,7 +52,12 @@ extern VOID sample_connection_monitor(NX_IP *ip_ptr,
 
 #define MILLISECONDS_IN_SECOND 1000U
 
-typedef enum app_event_e { APP_EVENT_NONE = 0, APP_EVENT_SEND_TELEMETRY_PULSE, APP_EVENT_SEND_MSG } app_event_t;
+typedef enum app_event_e {
+    APP_EVENT_NONE = 0,
+    APP_EVENT_SEND_TELEMETRY_PULSE,
+    APP_EVENT_SEND_MSG,
+    APP_EVENT_STOP_TELEMETRY
+} app_event_t;
 
 typedef struct application_msg_s {
     app_event_t event;
@@ -62,6 +86,14 @@ static UINT initialize_iothub(NX_AZURE_IOT_HUB_CLIENT *client);
 static void on_azure_iot_log(az_log_classification classification, UCHAR *msg, UINT msg_len);
 static void on_connection_status_update(NX_AZURE_IOT_HUB_CLIENT *hub_client, UINT status);
 static void on_timer_expiry(void *context);
+static void on_update_receive_change(NX_AZURE_IOT_ADU_AGENT *adu_agent_ptr,
+                                     UINT update_state,
+                                     UCHAR *provider,
+                                     UINT provider_length,
+                                     UCHAR *name,
+                                     UINT name_length,
+                                     UCHAR *version,
+                                     UINT version_length);
 
 static bool enqueue_application_message(const application_msg_t *msg);
 static UINT get_connection_status_atomically(void);
@@ -78,9 +110,10 @@ static NX_SECURE_X509_CERT root_ca_cert_2 = {0};
 static NX_SECURE_X509_CERT root_ca_cert_3 = {0};
 static NX_AZURE_IOT nx_azure_iot = {0};
 static NX_AZURE_IOT_HUB_CLIENT iothub_client = {0};
+static NX_AZURE_IOT_ADU_AGENT iothub_adu_agent = {0};
 static UINT connection_status = NX_AZURE_IOT_NOT_INITIALIZED;
 static uint8_t nx_azure_iot_tls_metadata_buffer[NX_AZURE_IOT_TLS_METADATA_BUFFER_SIZE] = {0};
-static uint32_t nx_azure_iot_thread_stack[2048UL / sizeof(uint32_t)] = {0};
+static uint32_t nx_azure_iot_thread_stack[8192UL / sizeof(uint32_t)] = {0};
 
 static osMessageQueueId_t msg_queue = NULL;
 static osMutexId_t connection_status_mutex = NULL;
@@ -185,7 +218,7 @@ static bool initialize_network_stack(void)
                           IP_ADDRESS(0, 0, 0, 0),
                           IP_ADDRESS(0, 0, 0, 0),
                           &packet_pool,
-                          nx_driver_mdh_ip_link_fsm,
+                          nx_driver_cmsis_ip_link_fsm,
                           (uint8_t *)network_ip_memory_buffer,
                           sizeof(network_ip_memory_buffer),
                           MAP_THREADX_PRIORITY_TO_CMSIS(osPriorityNormal));
@@ -489,7 +522,40 @@ static void sample_entry(void)
         printf("Error (0x%02x): Failed on nx_azure_iot_hub_client_connect!\r\n", read_connection_status);
     }
 
-    const osThreadAttr_t thread_attributes = {.priority = osPriorityNormal, .name = "TLMY_STACK", .stack_size = 4096UL};
+    psa_fwu_component_info_t info_ns;
+    psa_status_t psa_status = psa_fwu_query(FWU_COMPONENT_ID_NONSECURE, &info_ns);
+    if (psa_status != PSA_SUCCESS) {
+        printf("Failed to query non-secure firmware information. Error %" PRId32 "\r\n", psa_status);
+        return;
+    }
+    char version[16];
+    int length = snprintf(version,
+                          sizeof(version),
+                          "%" PRIu16 ".%" PRIu16 ".%" PRIu16,
+                          (uint16_t)info_ns.version.major,
+                          (uint16_t)info_ns.version.minor,
+                          info_ns.version.patch);
+    printf("Firmware version: %s\r\n", version);
+
+    status = nx_azure_iot_adu_agent_start(&iothub_adu_agent,
+                                          &iothub_client,
+                                          (UCHAR *)SAMPLE_MANUFACTURER,
+                                          sizeof(SAMPLE_MANUFACTURER) - 1,
+                                          (UCHAR *)SAMPLE_MODEL,
+                                          sizeof(SAMPLE_MODEL) - 1,
+                                          (UCHAR *)version,
+                                          length,
+                                          on_update_receive_change,
+                                          nx_azure_iot_adu_agent_driver_ns);
+
+    if (status == NX_AZURE_IOT_SUCCESS) {
+        printf("Azure Device Update agent started\r\n");
+    } else {
+        printf("Failed to start Azure Device Update agent! error code = 0x%08x\r\n", status);
+    }
+
+    const osThreadAttr_t thread_attributes = {
+        .priority = osPriorityNormal1, .name = "TLMY_STACK", .stack_size = 4096UL};
 
     if (osThreadNew(telemetry_thread_entry, NULL, &thread_attributes) == NULL) {
         printf("Failed to create telemetry sample thread!\r\n");
@@ -517,7 +583,9 @@ static void telemetry_thread_entry(void *context)
     }
 
     static osTimerId_t pulse_timer = NULL;
-    pulse_timer = osTimerNew(on_timer_expiry, osTimerPeriodic, NULL, NULL);
+    // We avoid periodic timer as depending on the load, it might saturate the event queue.
+    // the timer is restarted manually once the telemetry pulse has been sent.
+    pulse_timer = osTimerNew(on_timer_expiry, osTimerOnce, NULL, NULL);
     if (pulse_timer == NULL) {
         printf("Creating telemetry timer failed!");
         goto exit;
@@ -618,8 +686,18 @@ static void telemetry_thread_entry(void *context)
                     nx_azure_iot_hub_client_telemetry_message_delete(packet);
                 }
 
+                // restart timer for next telemetry pulse
+                os_status = osTimerStart(pulse_timer, osKernelGetTickFreq());
+                if (os_status != osOK) {
+                    printf("Failed to restart OS timer failed with code: %d", os_status);
+                    goto exit;
+                }
+
                 break;
             }
+
+            case APP_EVENT_STOP_TELEMETRY:
+                goto exit;
 
             default:
                 break;
@@ -708,6 +786,18 @@ static UINT initialize_iothub(NX_AZURE_IOT_HUB_CLIENT *client)
         return (status);
     }
 
+    status = nx_azure_iot_hub_client_model_id_set(client, (const UCHAR *)PNP_MODEL, sizeof(PNP_MODEL) - 1);
+    if (status != NX_AZURE_IOT_SUCCESS) {
+        printf("Failed on nx_azure_iot_hub_client_model_id_set!: error code = 0x%08x\r\n", status);
+        goto end;
+    }
+
+    status = nx_azure_iot_hub_client_properties_enable(client);
+    if (status != NX_AZURE_IOT_SUCCESS) {
+        printf("Properties enable failed!: error code = 0x%08x\r\n", status);
+        goto end;
+    }
+
     status = nx_azure_iot_hub_client_trusted_cert_add(client, &root_ca_cert_2);
     if (status != NX_AZURE_IOT_SUCCESS) {
         printf("Failed on nx_azure_iot_hub_client_trusted_cert_add!: error code = 0x%08x\r\n", status);
@@ -768,6 +858,33 @@ static void on_timer_expiry(void *context)
     (void)context;
 
     enqueue_application_message(&(application_msg_t){.event = APP_EVENT_SEND_TELEMETRY_PULSE, .return_code = 0});
+}
+
+static void on_update_receive_change(NX_AZURE_IOT_ADU_AGENT *adu_agent_ptr,
+                                     UINT update_state,
+                                     UCHAR *provider,
+                                     UINT provider_length,
+                                     UCHAR *name,
+                                     UINT name_length,
+                                     UCHAR *version,
+                                     UINT version_length)
+{
+    if (update_state == NX_AZURE_IOT_ADU_AGENT_UPDATE_RECEIVED) {
+        ml_task_inference_stop();
+        enqueue_application_message(&(application_msg_t){.event = APP_EVENT_STOP_TELEMETRY, .return_code = 0});
+        printf("Received new update: Provider: %.*s; Name: %.*s, Version: %.*s\r\n",
+               provider_length,
+               provider,
+               name_length,
+               name,
+               version_length,
+               version);
+        /* Start to download and install update immediately for testing.  */
+        nx_azure_iot_adu_agent_update_download_and_install(adu_agent_ptr);
+    } else if (update_state == NX_AZURE_IOT_ADU_AGENT_UPDATE_INSTALLED) {
+        /* Start to apply update immediately for testing.  */
+        nx_azure_iot_adu_agent_update_apply(adu_agent_ptr);
+    }
 }
 
 static bool enqueue_application_message(const application_msg_t *msg)

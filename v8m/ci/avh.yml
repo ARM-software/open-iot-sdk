@@ -12,7 +12,18 @@ steps:
       sudo apt update -y
       sudo apt install python3.8-venv python3-virtualenv -y
       python3.8 -m pip install imgtool cbor2
-      python3.9 -m pip install cffi intelhex cbor2 cbor pytest click imgtool jinja2 boto3 boto3-type-annotations jmespath
+      python3.9 -m pip install cffi intelhex cbor2 cbor pytest pytest_asyncio pyyaml click imgtool jinja2 boto3 boto3-type-annotations jmespath
+      mkdir -p workspace/cmsis_toolbox
+      mkdir -p /usr/local/bin/cmsis_toolbox
+      wget -q https://github.com/Open-CMSIS-Pack/cmsis-toolbox/releases/download/1.5.0/cmsis-toolbox-linux-amd64.tar.gz -O - | tar -xz -C workspace/cmsis_toolbox
+      sudo cp -r workspace/cmsis_toolbox/cmsis-toolbox-linux-amd64/* /usr/local/bin/cmsis_toolbox
+      PATH="/usr/local/bin/cmsis_toolbox/bin:${PATH}"
+      CMSIS_PACK_ROOT="/usr/local/bin/cmsis_toolbox/pack"
+      CMSIS_COMPILER_ROOT="/usr/local/bin/cmsis_toolbox/etc"
+      sudo chmod -R a+rwx /usr/local/bin/cmsis_toolbox
+      sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+      sudo chmod a+x /usr/local/bin/yq
+      sudo apt-get -y install jq
 
   - run: |
       export PATH=$PATH:$HOME/.local/bin

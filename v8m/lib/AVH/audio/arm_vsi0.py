@@ -1,4 +1,4 @@
-# Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
+# Copyright (c) 2022-2023, Arm Limited and Contributors. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 # Virtual Streaming Interface instance 0 Python script: Audio Input
@@ -57,6 +57,7 @@ CONTROL     = 0  # Regs[0]
 CHANNELS    = 0  # Regs[1]
 SAMPLE_BITS = 0  # Regs[2]
 SAMPLE_RATE = 0  # Regs[3]
+BLOCK_SIZE  = 0  # Regs[4]
 
 # User CONTROL register definitions
 CONTROL_ENABLE_Msk = 1<<0
@@ -234,6 +235,12 @@ def wrSAMPLE_RATE(value):
     SAMPLE_RATE = value
     logging.info("Sample rate: {}".format(value))
 
+## Write BlockSize register (user register)
+#  @param value value to write (32-bit)
+def wrBLOCK_SIZE(value):
+    global BLOCK_SIZE
+    BLOCK_SIZE = value
+    logging.info("BLOCK_SIZE: {}".format(value))
 
 ## Read user registers (the VSI User Registers)
 #  @param index user register index (zero based)
@@ -264,6 +271,8 @@ def wrRegs(index, value):
         wrSAMPLE_BITS(value)
     elif index == 3:
         wrSAMPLE_RATE(value)
+    elif index == 4:
+        wrBLOCK_SIZE(value)
 
     Regs[index] = value
     logging.debug("Write user register at index {}: {}".format(index, value))

@@ -198,7 +198,7 @@ enum tfm_hal_status_t tfm_hal_bind_boundary(
     privileged = IS_PARTITION_PSA_ROT(p_ldinf);
 #endif
 
-    ns_agent = IS_PARTITION_NS_AGENT(p_ldinf);
+    ns_agent = IS_NS_AGENT(p_ldinf);
     p_asset = LOAD_INFO_ASSET(p_ldinf);
 
     /*
