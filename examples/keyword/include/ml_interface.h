@@ -5,6 +5,7 @@
 #ifndef ML_INTERFACE_H
 #define ML_INTERFACE_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -37,10 +38,6 @@ void ml_task_inference_stop();
  */
 int ml_interface_init(void);
 
-/* Gets the current state of the ML model.
- */
-ml_processing_state_t get_ml_processing_state(void);
-
 /* Type of the handler called when the processing state changes.
  */
 typedef void (*ml_processing_change_handler_t)(void *self, ml_processing_state_t new_state);
@@ -59,6 +56,11 @@ void ml_mqtt_task(void *arg);
 
 /* To be implemented by application to send inference result */
 void mqtt_send_inference_result(const char *message);
+
+/* Prevent race condition between tasks on serial terminal (UART)
+ */
+bool serial_lock();
+bool serial_unlock();
 
 #ifdef __cplusplus
 }

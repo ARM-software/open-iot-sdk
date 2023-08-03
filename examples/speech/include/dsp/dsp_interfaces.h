@@ -13,19 +13,23 @@ extern float get_audio_timestamp();
 // Communication between DspAudioSource and ISR
 struct DspAudioSource { 
     public:
-    DspAudioSource(int16_t* audiobuffer, size_t block_count );
+    DspAudioSource(const int16_t* audiobuffer, size_t block_count );
 
-    int16_t *getCurrentBuffer();
+    const int16_t *getCurrentBuffer();
 
+#ifdef AUDIO_VSI
     void waitForNewBuffer();
 
     static void new_audio_block_received(void* ptr);
+#endif
 
 private:
     size_t block_count;
+#ifdef AUDIO_VSI
     size_t block_under_write = 0;
+#endif
     size_t current_block = 0;
-    int16_t* audiobuffer;
+    const int16_t* audiobuffer;
     osSemaphoreId_t semaphore = osSemaphoreNew(1, 0, NULL);
 };
 

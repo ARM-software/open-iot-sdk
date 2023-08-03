@@ -32,8 +32,8 @@ target_sources(speexdsp
 target_include_directories(speexdsp
     PUBLIC
         ${speexdsp_SOURCE_DIR}/include
-        ${PRJ_DIR}/lib/speexdsp/include
-        ${PRJ_DIR}/lib/speexdsp/libspeexdsp
+        ${CMAKE_SOURCE_DIR}/lib/speexdsp/include
+        ${CMAKE_SOURCE_DIR}/lib/speexdsp/libspeexdsp
         .
 )
 

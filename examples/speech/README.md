@@ -22,6 +22,7 @@ The system can be connected to the AWS IoT cloud and broadcast the ML inference 
 to the cloud in an MQTT topic or receive OTA update.
 
 The system can also be connected to the Azure IoT cloud and broadcast the ML inference result.
+When using NetX Duo Azure IoT Middleware, it can also receive OTA update.
 
 Details of the AWS and Azure configuration can be found in the main [README](../../README.md)
 

@@ -13,16 +13,19 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import logging
+import pytest
+
 from timeit import default_timer as timer
+from pyedmgr import TestDevice
 
 
-def test_ml(fvp):
+@pytest.mark.asyncio
+async def test_ml(fvp: TestDevice):
     # Traces expected in the output
     expectations = [
         "Starting bootloader",
-        "Booting TF-M v1.7.0",
-        "Starting scheduler from ns main",
-        "Ethos-U55 device initialised",
+        "Booting TF-M v1.8.0",
         "ML interface initialised",
         "ML_HEARD_ON",
         "ML_HEARD_OFF",
@@ -39,12 +42,10 @@ def test_ml(fvp):
 
     # Timeout for the test is 10 minutes
     while (current_time - start) < (10 * 60):
-        line = fvp.stdout.readline()
-        if not line:
-            break
-        line = line.decode("utf-8")
-        line = line.rstrip()
-        print(line)
+        line = await fvp.channel.readline_async()
+        line = line.decode("utf-8").rstrip()
+        if line:
+            logging.info(line)
         if expectations[index] in line:
             index += 1
             if index == len(expectations):

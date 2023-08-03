@@ -17,8 +17,8 @@ import os
 import sys
 import time
 import traceback as tb
-
 import boto3
+import logging
 
 SCRIPT_NAME = list(filter(lambda x: x.endswith(".py"), sys.argv))[0]
 SCRIPT_DIR = os.path.dirname(SCRIPT_NAME)
@@ -97,7 +97,7 @@ class Flags:
 
 def print_ex(ex):
     x = tb.extract_stack()[1]
-    print(f"{x.filename}:{x.lineno}:{x.name}: {ex}", file=sys.stderr)
+    logging.error(f"{x.filename}:{x.lineno}:{x.name}: {ex}")
 
 
 def wait_for_status(id, action):
@@ -119,7 +119,7 @@ def wait_for_status(id, action):
                         action, res["otaUpdateInfo"]["errorInfo"]["message"]
                     )
                 )
-            print("OTA update status:", status)
+            logging.info(f"OTA update status: {status}")
             time.sleep(5)
 
 
@@ -132,19 +132,13 @@ def create_aws_resources(flags: Flags):
             ACL="private",
             CreateBucketConfiguration={"LocationConstraint": AWS_REGION},
         )
-        print("Created new S3 bucket", flags.OTA_S3_BUCKET)
+        logging.info(f"Created new S3 bucket: {flags.OTA_S3_BUCKET}")
 
         # Push firmware to test bucket
         flags.file = open(flags.OTA_BINARY_PATH, "rb")
         s3.put_object(Bucket=flags.OTA_S3_BUCKET, Key=flags.OTA_BINARY, Body=flags.file)
         flags.file.close()
-        print(
-            "Added",
-            flags.OTA_BINARY,
-            "to S3 bucket",
-            flags.OTA_S3_BUCKET,
-            file=sys.stderr,
-        )
+        logging.info(f"Added {flags.OTA_BINARY} to S3 bucket {flags.OTA_S3_BUCKET}")
 
         # Create test thing with policy attached.
         flags.thing = iot.create_thing(thingName=flags.OTA_THING_NAME)["thingArn"]
@@ -152,7 +146,7 @@ def create_aws_resources(flags: Flags):
             thingName=flags.OTA_THING_NAME,
             principal=f"arn:aws:iot:{AWS_REGION}:{flags.AWS_ACCOUNT}:cert/{OTA_CERT_ID}",
         )
-        print("Created OTA thing", flags.OTA_THING_NAME)
+        logging.info(f"Created OTA thing {flags.OTA_THING_NAME}")
 
         # Create update
         flags.update = "ota-test-update-id-" + flags.TEST_ID
@@ -165,7 +159,7 @@ def create_aws_resources(flags: Flags):
             roleArn=flags.OTA_ROLE_ARN,
         )
         wait_for_status(flags.update, "create")
-        print("Created update", flags.update, file=sys.stderr)
+        logging.info(f"Created update {flags.update}")
         return flags
     except Exception as e:
         cleanup_aws_resources(flags)
@@ -182,7 +176,7 @@ def cleanup_aws_resources(flags: Flags):
         except Exception as ex:
             print_ex(ex)
         else:
-            print("Deleted update", flags.update, file=sys.stderr)
+            logging.info(f"Deleted update {flags.update}")
             flags.update = None
     if flags.thing:
         try:
@@ -194,7 +188,7 @@ def cleanup_aws_resources(flags: Flags):
         except Exception as ex:
             print_ex(ex)
         else:
-            print("Deleted thing", flags.thing, file=sys.stderr)
+            logging.info(f"Deleted thing {flags.thing}")
             flags.thing = None
     if flags.file:
         try:
@@ -202,11 +196,8 @@ def cleanup_aws_resources(flags: Flags):
         except Exception as ex:
             print_ex(ex)
         else:
-            print(
-                "Deleted S3 object {} from {}".format(
-                    flags.OTA_BINARY, flags.OTA_S3_BUCKET
-                ),
-                file=sys.stderr,
+            logging.info(
+                f"Deleted S3 object {flags.OTA_BINARY} from {flags.OTA_S3_BUCKET}"
             )
             flags.file = None
     if flags.bucket:
@@ -215,5 +206,5 @@ def cleanup_aws_resources(flags: Flags):
         except Exception as ex:
             print_ex(ex)
         else:
-            print("Deleted S3 bucket", flags.OTA_S3_BUCKET, file=sys.stderr)
+            logging.info(f"Deleted S3 bucket {flags.OTA_S3_BUCKET}")
             flags.bucket = None

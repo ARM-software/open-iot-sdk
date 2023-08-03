@@ -8,7 +8,7 @@ default:
 
 include:
   - project: '${OPEN_IOT_SDK_BASE_GROUP}/tools/developer-tools'
-    ref: 6a73898b680dd7772c01ff7fc5e3610be1cdc48f
+    ref: b44bf6f877313c32b74d531073d46fecea85bbf5
     file:
       - '/templates/pipeline-baseline-sdk.yml'
       - '/templates/sync-public/pipeline-sync-public.yml'
@@ -40,6 +40,13 @@ workflow:
     - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+black-duck:
+  stage:
+    quality-check
+  variables:
+    BD_PROJECT_NAME: "IoT-M:total-solutions"
+
 
 .ami-test-base:
   stage: build
@@ -104,14 +111,20 @@ ami-test-aws:
         RTOS: [FREERTOS, RTX]
         AVH: VHT_Corstone_SSE-300_Ethos-U55
         APPLICATIONS_TO_BUILD: blinky, keyword, speech
-        PYTEST_SELECTION: examples/blinky/tests,examples/keyword/tests/test_ml.py,examples/keyword/tests/test_ota.py,examples/speech/tests/test_ml.py,examples/speech/tests/test_ota.py
+        PYTEST_SELECTION: examples/blinky/tests,examples/keyword/tests/test_ml.py,examples/keyword/tests/test_aws_ota.py,examples/speech/tests/test_ml.py,examples/speech/tests/test_aws_ota.py
         ENDPOINT: [AWS]
+        INFERENCE: [ETHOS]
+        TOOLCHAIN: [ARMCLANG, GNU]
+        AUDIO: [VSI]
       - TARGET: Corstone-310
         RTOS: [FREERTOS, RTX]
         AVH: VHT_Corstone_SSE-310
         APPLICATIONS_TO_BUILD: blinky, keyword, speech
-        PYTEST_SELECTION: examples/blinky/tests,examples/keyword/tests/test_ml.py,examples/keyword/tests/test_ota.py,examples/speech/tests/test_ml.py,examples/speech/tests/test_ota.py
+        PYTEST_SELECTION: examples/blinky/tests,examples/keyword/tests/test_ml.py,examples/keyword/tests/test_aws_ota.py,examples/speech/tests/test_ml.py,examples/speech/tests/test_aws_ota.py
         ENDPOINT: [AWS]
+        INFERENCE: [ETHOS]
+        TOOLCHAIN: [ARMCLANG, GNU]
+        AUDIO: [VSI]
 
 ami-test-mlia:
   extends: .ami-test-base
@@ -125,6 +138,9 @@ ami-test-mlia:
         APPLICATIONS_TO_BUILD: mlia
         PYTEST_SELECTION: "mlia/tests/test_ats_mlia.py"
         ENDPOINT: [AWS]
+        INFERENCE: [ETHOS]
+        TOOLCHAIN: [ARMCLANG]
+        AUDIO: [VSI]
 
 ami-test-azure:
   extends: .ami-test-base
@@ -136,12 +152,18 @@ ami-test-azure:
         APPLICATIONS_TO_BUILD: blinky, keyword, speech
         PYTEST_SELECTION: "examples/blinky/tests,examples/keyword/tests/test_ml.py,examples/keyword/tests/test_azure.py ,examples/speech/tests/test_ml.py,examples/speech/tests/test_azure.py"
         ENDPOINT: [AZURE]
+        INFERENCE: [ETHOS]
+        TOOLCHAIN: [ARMCLANG, GNU]
+        AUDIO: [VSI]
       - TARGET: Corstone-310
         RTOS: [RTX, THREADX]
         AVH: VHT_Corstone_SSE-310
         APPLICATIONS_TO_BUILD: blinky, keyword, speech
         PYTEST_SELECTION: "examples/blinky/tests,examples/keyword/tests/test_ml.py,examples/keyword/tests/test_azure.py,examples/speech/tests/test_ml.py,examples/speech/tests/test_azure.py"
         ENDPOINT: [AZURE]
+        INFERENCE: [ETHOS]
+        TOOLCHAIN: [ARMCLANG, GNU]
+        AUDIO: [VSI]
 
 # This base job load the right docker image and sets some default variables
 .base_job:
@@ -150,7 +172,7 @@ ami-test-azure:
     - iotmsw-amd64
   variables:
     PYTHONUNBUFFERED: 1
-    OUTPUT_FOLDER: build-${TARGET}-${RTOS}-${ENDPOINT}
+    OUTPUT_FOLDER: build-${TARGET}-${RTOS}-${ENDPOINT}-${INFERENCE}-${TOOLCHAIN}-${AUDIO}
 
 
 # The test job extends .basejob. It add rules to map targets to AVH binaries,
@@ -170,6 +192,18 @@ ami-test-azure:
       if [ $TARGET == "Corstone-310" ];then
         AVH=/opt/VHT/VHT_Corstone_SSE-310
       fi
+    - virtualenv --system-site-packages -p 3.9 venv
+    - . venv/bin/activate
+    - pip install -U -r requirements.ci.txt
+    - pip install wheel
+    - pip install pytest_asyncio
+    - git clone https://git.gitlab.arm.com/iot/open-iot-sdk/tools/pyedmgr.git
+    - export PYEDMGR_ROOT=$PWD/pyedmgr
+    - export PYTHONPATH=$PYEDMGR_ROOT:$PYTHONPATH
+    - pushd $PYEDMGR_ROOT
+    - pip install -r requirements.txt
+    - python setup.py install
+    - popd
 
 
 # Those fragments contain base variables required by pipelines for AWS and Azure.
@@ -178,16 +212,41 @@ ami-test-azure:
   TARGET: [Corstone-300, Corstone-310]
   RTOS: [FREERTOS, RTX]
   ENDPOINT: [AWS]
+  INFERENCE: [ETHOS]
+  TOOLCHAIN: [ARMCLANG, GNU]
+  AUDIO: [VSI]
 
 .pipeline_config_azure: &pipeline_config_azure
   TARGET: [Corstone-300, Corstone-310]
   RTOS: [THREADX, RTX]
   ENDPOINT: [AZURE]
+  INFERENCE: [ETHOS]
+  TOOLCHAIN: [ARMCLANG, GNU]
+  AUDIO: [VSI]
 
 .pipeline_config_azure_netxduo: &pipeline_config_azure_netxduo
   TARGET: [Corstone-300, Corstone-310]
   RTOS: [THREADX]
   ENDPOINT: [AZURE_NETXDUO]
+  INFERENCE: [ETHOS]
+  TOOLCHAIN: [ARMCLANG, GNU]
+  AUDIO: [VSI]
+
+.pipeline_config_software_inference: &pipeline_config_software_inference
+  TARGET: [Corstone-300, Corstone-310]
+  RTOS: [FREERTOS]
+  ENDPOINT: [AWS]
+  INFERENCE: [SOFTWARE]
+  TOOLCHAIN: [ARMCLANG, GNU]
+  AUDIO: [VSI]
+
+.pipeline_config_audio_in_memory: &pipeline_config_audio_in_memory
+  TARGET: [Corstone-300, Corstone-310]
+  RTOS: [FREERTOS]
+  ENDPOINT: [AWS]
+  INFERENCE: [ETHOS]
+  TOOLCHAIN: [ARMCLANG, GNU]
+  AUDIO: [ROM]
 
 # Build all the applications which later are tested. Build of the various binaries
 # is described in ./ci/build_examples.sh
@@ -231,32 +290,40 @@ build-applications:
       - *pipeline_config_aws
       - *pipeline_config_azure
       - *pipeline_config_azure_netxduo
+      - *pipeline_config_software_inference
+      - *pipeline_config_audio_in_memory
 
-# Test the blinky and ML part of the KWS application
+# Test the ML part of the KWS application
 test-application:
   extends: .test_job
   script:
     - env
-    - echo $AVH
-    - pytest -s ${TEST_PATH} --build-path ${OUTPUT_FOLDER} --avh ${AVH}
+    - ./ats.sh test ${APP} ml --build-path ${OUTPUT_FOLDER} --avh ${AVH}
   parallel:
     matrix:
+      # add more names to the APP array as we move tests to pyedmgr
       -
         << : *pipeline_config_aws
-        TEST_PATH: [examples/blinky/tests, examples/keyword/tests/test_ml.py, examples/speech/tests/test_ml.py]
+        APP: [blinky, keyword, speech]
       -
         << : *pipeline_config_azure
-        TEST_PATH: [examples/blinky/tests, examples/keyword/tests/test_ml.py, examples/speech/tests/test_ml.py]
+        APP: [blinky, keyword, speech]
       -
         << : *pipeline_config_azure_netxduo
-        TEST_PATH: [examples/blinky/tests, examples/keyword/tests/test_ml.py, examples/speech/tests/test_ml.py]
+        APP: [blinky, keyword, speech]
+      -
+        << : *pipeline_config_software_inference
+        APP: [keyword]
+      -
+        << : *pipeline_config_audio_in_memory
+        APP: [keyword, speech]
 
 # Test connection to the AWS cloud
 test-ota-aws:
   extends: .test_job
   script:
     - env
-    - pytest -s examples/${APP}/tests/test_ota.py --build-path "$OUTPUT_FOLDER"_cloud_${APP} --avh $AVH --credentials-path "$OUTPUT_FOLDER"_credentials_${APP}
+    - ./ats.sh test ${APP} aws_ota --build-path "$OUTPUT_FOLDER"_cloud_${APP} --avh $AVH --credentials-path "$OUTPUT_FOLDER"_credentials_${APP}
   parallel:
     matrix:
       -
@@ -268,7 +335,7 @@ test-ml-azure:
   extends: .test_job
   script:
     - env
-    - pytest -s examples/${APP}/tests/test_azure.py --build-path "$OUTPUT_FOLDER"_cloud_${APP} --avh $AVH
+    - ./ats.sh test ${APP} azure --build-path "$OUTPUT_FOLDER"_cloud_${APP} --avh $AVH
   parallel:
     matrix:
       -
@@ -278,8 +345,22 @@ test-ml-azure:
         << : *pipeline_config_azure_netxduo
         APP: [keyword, speech]
 
+# Test OTA with Azure NetX Duo
+test-ota-azure-netxduo:
+  extends: .test_job
+  # Serialize Device Update runs to avoid throttling by Azure
+  resource_group: azure-device-update
+  script:
+    - env
+    - ./ats.sh test ${APP} azure_netxduo_ota --build-path "$OUTPUT_FOLDER"_cloud_${APP} --avh $AVH --credentials-path "$OUTPUT_FOLDER"_credentials_${APP}
+  parallel:
+    matrix:
+      -
+        << : *pipeline_config_azure_netxduo
+        APP: [keyword, speech]
+
 test-mlia:
-  extends: .base-job-rules
+  extends: .test_job
   stage: test
   tags:
     - iotmsw-amd64

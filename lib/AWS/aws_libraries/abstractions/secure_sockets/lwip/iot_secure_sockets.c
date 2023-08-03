@@ -1,7 +1,7 @@
 /*
  * FreeRTOS Secure Sockets V1.3.1
  * Copyright (C) 2021 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
- * Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
+ * Copyright (c) 2022-2023, Arm Limited and Contributors. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -41,7 +41,7 @@
 #include <string.h>
 #include <stdbool.h>
 
-#include "bootstrap/mbed_atomic.h"
+#include "mbed_atomic/mbed_atomic.h"
 
 /*-----------------------------------------------------------*/
 

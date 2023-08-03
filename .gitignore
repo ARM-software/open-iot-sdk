@@ -19,6 +19,9 @@ Objects/
 RTE/
 downloads
 
+# Virtual Environment
+.venv/
+
 # TF-Fuzz build artifacts
 *.o
 *_grammar.*

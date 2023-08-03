@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#  Copyright (c) 2021-2022 Arm Limited. All rights reserved.
+#  Copyright (c) 2021-2023 Arm Limited. All rights reserved.
 #  SPDX-License-Identifier: Apache-2.0
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,7 +28,11 @@ TARGET="Corstone-300"
 TARGET_PROCESSOR=""
 RTOS="RTX"
 ENDPOINT="AWS"
+INFERENCE="ETHOS"
+AUDIO="VSI"
 BUILD=1
+COMPILER="ARMCLANG"
+TOOLCHAIN=""
 
 set -e
 
@@ -52,7 +56,7 @@ function build_with_cmake {
         set -ex
 
         # Note: A bug in CMake force us to set the toolchain here
-        cmake -G Ninja -S . -B $BUILD_PATH --toolchain=toolchains/toolchain-armclang.cmake -DCMAKE_SYSTEM_PROCESSOR=$TARGET_PROCESSOR -DAPP_CONFIG_CREDENTIALS_PATH=$CREDENTIALS_PATH -DTS_TARGET=$TARGET -DRTOS=$RTOS -DCLOUD_CLIENT=$ENDPOINT
+        cmake -G Ninja -S . -B $BUILD_PATH --toolchain=$TOOLCHAIN -DAPP_CONFIG_CREDENTIALS_PATH=$CREDENTIALS_PATH -DTS_TARGET=$TARGET -DRTOS=$RTOS -DCLOUD_CLIENT=$ENDPOINT -DINFERENCE_ENGINE=$INFERENCE -DAUDIO=$AUDIO
         if [[ $BUILD -ne 0 ]]; then
             cmake --build $BUILD_PATH --target $EXAMPLE
         fi
@@ -86,6 +90,9 @@ Options:
     -t,--target      Build target (Corstone-300 or Corstone-310)
     -r,--rtos        RTOS selection (RTX | FREERTOS | THREADX)
     -e,--endpoint    Cloud client type
+    -i,--inference   Inference engine selection (ETHOS | SOFTWARE)
+    -s,--audio       Audio source (VSI | ROM)
+    --toolchain       Compiler (ARMCLANG | GNU)
     --configure-only Create build tree but do not build
 
 Examples:
@@ -101,8 +108,8 @@ if [[ $# -eq 0 ]]; then
     exit 1
 fi
 
-SHORT=a:,p:,r:,t:,e:,c,h
-LONG=credentials:,path:,rtos:,endpoint:,target:,clean,help,configure-only
+SHORT=a:,p:,r:,t:,e:,i:,s:,c,h
+LONG=credentials:,path:,rtos:,endpoint:,target:,inference:,audio:,clean,help,configure-only,toolchain:
 OPTS=$(getopt -n build --options $SHORT --longoptions $LONG -- "$@")
 
 eval set -- "$OPTS"
@@ -136,6 +143,18 @@ do
       ;;
     -e | --endpoint )
       ENDPOINT=$2
+      shift 2
+      ;;
+    -i | --inference )
+      INFERENCE=$2
+      shift 2
+      ;;
+    -s | --audio )
+      AUDIO=$2
+      shift 2
+      ;;
+    --toolchain )
+      COMPILER=$2
       shift 2
       ;;
     --configure-only )
@@ -200,6 +219,40 @@ case "$ENDPOINT" in
        ;;
     *)
       echo "Invalid endpoint <AWS | AZURE | AZURE_NETXDUO>"
+      show_usage
+      exit 2
+      ;;
+esac
+
+case "$INFERENCE" in
+    ETHOS | SOFTWARE )
+        ;;
+    *)
+        echo "Invalid inference selection <ETHOS|SOFTWARE>"
+        show_usage
+        exit 2
+        ;;
+esac
+
+case "$AUDIO" in
+    VSI | ROM )
+        ;;
+    *)
+        echo "Invalid audio source selection <VSI|ROM>"
+        show_usage
+        exit 2
+        ;;
+esac
+
+case "$COMPILER" in
+    ARMCLANG )
+      TOOLCHAIN="toolchains/toolchain-armclang.cmake"
+      ;;
+    GNU )
+      TOOLCHAIN="toolchains/toolchain-arm-none-eabi-gcc.cmake"
+      ;;
+    *)
+      echo "Invalid toolchain <ARMCLANG | GNU>"
       show_usage
       exit 2
       ;;

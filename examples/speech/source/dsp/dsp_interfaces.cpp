@@ -1,4 +1,4 @@
-/* Copyright (c) 2022, Arm Limited and Contributors. All rights reserved.
+/* Copyright (c) 2022-2023, Arm Limited and Contributors. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -14,35 +14,42 @@
 #include <cstring>
 
 extern "C" {
-#include "hal-toolbox/critical_section_api.h"
+#include "mbed_critical/mbed_critical.h"
 }
 
 static float audio_timestamp = 0.0;
 
-void set_audio_timestamp(float timestamp) { 
-    hal_critical_section_enter();
+void set_audio_timestamp(float timestamp) {
+    core_util_critical_section_enter();
     audio_timestamp = timestamp;
-    hal_critical_section_exit();
+    core_util_critical_section_exit();
 }
 
 float get_audio_timestamp() {
-    hal_critical_section_enter();
+    core_util_critical_section_enter();
     float timestamp = audio_timestamp;
-    hal_critical_section_exit();
+    core_util_critical_section_exit();
     return timestamp;
 }
 
-DspAudioSource::DspAudioSource(int16_t* audiobuffer, size_t block_count ):
+DspAudioSource::DspAudioSource(const int16_t* audiobuffer, size_t block_count ):
         block_count{block_count},
         audiobuffer{audiobuffer} 
 {
 
 }
 
-int16_t *DspAudioSource::getCurrentBuffer()
+const int16_t *DspAudioSource::getCurrentBuffer()
 {
+#ifndef AUDIO_VSI
+    // Update block ID
+    current_block = (current_block + 1) % block_count;
+#endif
+
     return(audiobuffer+this->current_block*(AUDIO_BLOCK_SIZE/2));
 }
+
+#ifdef AUDIO_VSI
 
 void DspAudioSource::waitForNewBuffer()
 {
@@ -60,6 +67,8 @@ void DspAudioSource::new_audio_block_received(void* ptr)
     // Wakeup task waiting
     osSemaphoreRelease(self->semaphore);
 };
+
+#endif
 
 static bool dspml_lock(osMutexId_t ml_fifo_mutex)
 {
